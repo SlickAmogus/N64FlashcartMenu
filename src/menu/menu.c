@@ -86,18 +86,6 @@ static void menu_init (boot_params_t *boot_params) {
     menu->load.load_history_id = -1;
     menu->load.load_favorite_id = -1;
     path_pop(path);
-  
-    if (menu->settings.pal60_enabled) { // it is not given that hardware VI mods understand the output
-        tv_type_t tv_type = get_tv_type();
-        if (tv_type == TV_PAL) {
-            // Set VI timing so it will use 60Hz signal.
-            vi_set_timing_preset(&VI_TIMING_PAL60);
-
-            // FIXME: timeout and restore to PAL 50Hz if not shown, 
-            // this should be added as a button confirm, or reset combo, rather than re-setting via manual edit of the INI?.
-            //vi_set_timing_preset(&VI_TIMING_PAL);
-        }
-    }
 
     // Force interlacing off in VI settings for TVs and other devices that struggle with interlaced video input.
     interlaced = !menu->settings.force_progressive_scan;
@@ -109,6 +97,19 @@ static void menu_init (boot_params_t *boot_params) {
     };
 
     display_init(resolution, DEPTH_16_BPP, 2, GAMMA_NONE, interlaced ? FILTERS_DISABLED : FILTERS_RESAMPLE);
+    
+    if (menu->settings.pal60_enabled) { // it is not given that hardware VI mods understand the output
+        tv_type_t tv_type = get_tv_type();
+        if (tv_type == TV_PAL) {
+            // Set VI timing so it will use 60Hz signal.
+            vi_set_timing_preset(&VI_TIMING_PAL60);
+
+            // FIXME: timeout and restore to PAL 50Hz if not shown, 
+            // this should be added as a button confirm, or reset combo, rather than re-setting via manual edit of the INI?.
+            //vi_set_timing_preset(&VI_TIMING_PAL);
+        }
+    }
+    
     display_set_fps_limit(FPS_LIMIT);
 
     path_push(path, MENU_CUSTOM_FONT_FILE);
