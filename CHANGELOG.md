@@ -4,6 +4,44 @@
 - For the 64Drive, use the `menu.bin` file in the root of your SD card.
 - For the ares emulator, use the `N64FlashcartMenu.n64` file.
 
+## Release Notes 2026-Vnext
+
+- **New Features**
+	- None.
+
+- **Bug Fixes**
+	- Neon64 1Mbit SRAM.
+
+
+- **Documentation**
+	- Other minor fixes.
+
+- **Refactor**
+	- PAL60.
+	- Age ratings.
+	- rom metadata.
+
+- **Other**
+	- Updated libDragon SDK.
+	- Add docfx devcontiner.
+	- Remove rolling prerelease (all releases to main should be tagged).
+	- add AI repo instructions.
+
+### Breaking changes
+- None.
+
+
+### Current known Issues
+- Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
+- Fast Rebooting a 64DD disk once will result in a blank screen. Twice will return to menu. This is expected until disk swapping is implemented.
+- Some users have reported crashes in Zelda OOT (anti piracy checks). Menu V0.2.0 works as expected.
+- A user has reported that the menu crashes with a CPU exception. Menu V0.2.0 works as expected.
+
+
+### Deprecation notices
+- None.
+
+
 ## Release Notes 2025-12-04 - Tagged 0.3.1
 
 - **New Features**
@@ -38,6 +76,8 @@
 ### Current known Issues
 - Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
 - Fast Rebooting a 64DD disk once will result in a blank screen. Twice will return to menu. This is expected until disk swapping is implemented.
+- Some users have reported crashes in Zelda OOT (anti piracy checks). Menu V0.2.0 works as expected.
+- A user has reported that the menu crashes with a CPU exception. Menu V0.2.0 works as expected.
 
 
 ### Deprecation notices
@@ -91,6 +131,8 @@
 * Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
 * Fast Rebooting a 64DD disk once will result in a blank screen. Twice will return to menu. This is expected until disk swapping is implemented.
 * MP3 Player crashes menu if the MP3 file's sample rate is less than 44100 hz and menu SFX are enabled.
+- Some users have reported crashes in Zelda OOT (anti piracy checks). Menu V0.2.0 works as expected.
+- A user has reported that the menu crashes with a CPU exception. Menu V0.2.0 works as expected.
 
 
 ### Deprecation notices
