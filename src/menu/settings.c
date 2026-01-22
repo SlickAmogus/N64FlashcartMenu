@@ -50,7 +50,7 @@ void settings_load (settings_t *settings) {
 
     settings->schema_revision = mini_get_int(ini, "menu", "schema_revision", init.schema_revision);
     settings->first_run = mini_get_bool(ini, "menu", "first_run", init.first_run);
-    settings->pal60_enabled = mini_get_bool(ini, "menu", "pal60", init.pal60_enabled); // TODO: consider changing file setting name
+    settings->pal60_enabled = mini_get_bool(ini, "menu", "pal60", init.pal60_enabled);
     settings->force_progressive_scan = mini_get_bool(ini, "menu", "force_progressive_scan", init.force_progressive_scan);
     settings->show_protected_entries = mini_get_bool(ini, "menu", "show_protected_entries", init.show_protected_entries);
     settings->default_directory = strdup(mini_get_string(ini, "menu", "default_directory", init.default_directory));

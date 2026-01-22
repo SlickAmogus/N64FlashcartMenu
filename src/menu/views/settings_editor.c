@@ -45,7 +45,31 @@ static void set_soundfx_enabled_type (menu_t *menu, void *arg) {
 }
 
 static void set_pal60_type (menu_t *menu, void *arg) {
-    menu->settings.pal60_enabled = (bool)(uintptr_t)(arg);
+    bool pal60_try_enable = (bool)(uintptr_t)(arg);
+    tv_type_t tv_type = get_tv_type();
+    // FIXME: we can check it is supported by adding a warning and setting it, with a confirmation.
+    if (pal60_try_enable && (tv_type == TV_PAL)) {
+        //enable it without needing to reboot the console.
+        // FIXME: Add message box to press a button as confirmation. 
+        // Set VI timing so it will use 60Hz signal.
+        vi_set_timing_preset(&VI_TIMING_PAL60);
+
+        // FIXME: timeout and restore to PAL 50Hz if message not shown, 
+        //vi_set_timing_preset(&VI_TIMING_PAL);
+        
+    }
+    else if (!pal60_try_enable && (tv_type == TV_PAL)){
+        //disable it without needing to reboot the console.
+        // Set VI timing so it will use 50Hz signal.
+        vi_set_timing_preset(&VI_TIMING_PAL);
+        
+    }
+    else {
+        //not PAL, cannot enable PAL60
+        pal60_try_enable = false;
+    }
+    
+    menu->settings.pal60_enabled = pal60_try_enable;
     settings_save(&menu->settings);
 }
 
@@ -309,7 +333,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     Rumble Feedback   : %s\n"
 #endif
         "\n\n"
-        "* NOTE: This setting may cause the display to go dark on next power cycle. If you get it wrong, you must manually edit the menu/config.ini on the SD card to re-disable it.\n"
+        "* NOTE: This setting may cause the display to go dark. If you get it wrong, you must manually edit the menu/config.ini on the SD card to re-disable it.\n"
         ,
         menu->settings.default_directory,
         format_switch(menu->settings.show_protected_entries),
