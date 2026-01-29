@@ -9,6 +9,7 @@
 #include <string.h>
 
 static bool show_extra_info_message = false;
+static bool show_advanced_info_message = false;
 static component_boxart_t *boxart;
 static char *rom_filename = NULL;
 
@@ -437,6 +438,13 @@ static void process (menu_t *menu) {
             show_extra_info_message = true;
         }
         sound_play_effect(SFX_SETTING);
+    } else if (menu->actions.settings) { // TODO: change to go_right/go_left when those are implemented
+        if (show_advanced_info_message) {
+            show_advanced_info_message = false;
+        } else {
+            show_advanced_info_message = true;
+        }
+        sound_play_effect(SFX_SETTING);
     } else if (menu->actions.go_right) {
         iterate_metadata_image(menu, 1);
         sound_play_effect(SFX_CURSOR);
@@ -514,30 +522,40 @@ static void draw (menu_t *menu, surface_t *d) {
             ui_components_messagebox_draw(
                 "EXTRA ROM INFO\n"
                 "\n"
-                "Endianness: %s\n"
                 "Title: %.20s\n"
                 "Game code: %c%c%c%c\n"
+                "Age Rating: %s\n"
+                "Release Date: %s\n"
+                "Author: %s\n"
                 "Media type: %s\n"
                 "Variant: %s\n"
                 "Version: %hhu\n"
-                "Age Rating: %s\n"
-                "Release Date: %s\n"
+                "Endianness: %s\n"
                 "Check code: 0x%016llX\n"
-                "CIC: %s\n"
-                "Boot address: 0x%08lX\n"
-                "SDK version: %.1f%c\n"
-                "Clock Rate: %.2fMHz\n\n\n"
+                "CIC: %s\n\n\n"
                 "Press L|Z to return.\n",
-                format_rom_endianness(menu->load.rom_info.endianness),
                 menu->load.rom_info.title,
                 menu->load.rom_info.game_code[0], menu->load.rom_info.game_code[1], menu->load.rom_info.game_code[2], menu->load.rom_info.game_code[3],
+                format_age_rating(menu->load.rom_info.meta.age_rating),
+                menu->load.rom_info.meta.release_date,
+                menu->load.rom_info.meta.author,
                 format_rom_media_type(menu->load.rom_info.category_code),
                 format_rom_destination_market(menu->load.rom_info.destination_code),
                 menu->load.rom_info.version,
-                format_age_rating(menu->load.rom_info.meta.age_rating),
-                menu->load.rom_info.meta.release_date,
+                format_rom_endianness(menu->load.rom_info.endianness),
                 menu->load.rom_info.check_code,
-                format_cic_type(rom_info_get_cic_type(&menu->load.rom_info)),
+                format_cic_type(rom_info_get_cic_type(&menu->load.rom_info))
+            );
+        }
+
+        if (show_advanced_info_message) {
+            ui_components_messagebox_draw(
+                "ADVANCED ROM INFO\n"
+                "\n"
+                "Boot address: 0x%08lX\n"
+                "SDK version: %.1f%c\n"
+                "Clock Rate: %.2fMHz\n\n\n"
+                "Press START to return.\n",
                 menu->load.rom_info.boot_address,
                 (menu->load.rom_info.libultra.version / 10.0f), menu->load.rom_info.libultra.revision,
                 menu->load.rom_info.clock_rate
@@ -662,6 +680,9 @@ void view_load_rom_init (menu_t *menu) {
 
     if (show_extra_info_message) {
         show_extra_info_message = false;
+    }
+    if (show_advanced_info_message) {
+        show_advanced_info_message = false;
     }
 
     debugf("Load ROM: loading ROM info from %s\n", path_get(menu->load.rom_path));
