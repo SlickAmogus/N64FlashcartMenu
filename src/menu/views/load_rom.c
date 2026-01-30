@@ -513,7 +513,7 @@ static void draw (menu_t *menu, surface_t *d) {
             STL_DEFAULT,
             ALIGN_CENTER, VALIGN_TOP,
             "Start: Adv. Info\n"
-            "\n"
+            "◀ Change game image ▶\n"
         );
 
         ui_components_actions_bar_text_draw(
