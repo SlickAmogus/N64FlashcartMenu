@@ -523,27 +523,23 @@ static void draw (menu_t *menu, surface_t *d) {
                 "EXTRA ROM INFO\n"
                 "\n"
                 "Title: %.20s\n"
-                "Game code: %c%c%c%c\n"
                 "Age Rating: %s\n"
                 "Release Date: %s\n"
                 "Author: %s\n"
+                "Game code: %c%c%c%c\n"
                 "Media type: %s\n"
                 "Variant: %s\n"
                 "Version: %hhu\n"
-                "Endianness: %s\n"
-                "Check code: 0x%016llX\n"
                 "CIC: %s\n\n\n"
                 "Press L|Z to return.\n",
                 menu->load.rom_info.title,
-                menu->load.rom_info.game_code[0], menu->load.rom_info.game_code[1], menu->load.rom_info.game_code[2], menu->load.rom_info.game_code[3],
                 format_age_rating(menu->load.rom_info.meta.age_rating),
                 menu->load.rom_info.meta.release_date,
                 menu->load.rom_info.meta.author,
+                menu->load.rom_info.game_code[0], menu->load.rom_info.game_code[1], menu->load.rom_info.game_code[2], menu->load.rom_info.game_code[3],
                 format_rom_media_type(menu->load.rom_info.category_code),
                 format_rom_destination_market(menu->load.rom_info.destination_code),
                 menu->load.rom_info.version,
-                format_rom_endianness(menu->load.rom_info.endianness),
-                menu->load.rom_info.check_code,
                 format_cic_type(rom_info_get_cic_type(&menu->load.rom_info))
             );
         }
@@ -554,11 +550,15 @@ static void draw (menu_t *menu, surface_t *d) {
                 "\n"
                 "Boot address: 0x%08lX\n"
                 "SDK version: %.1f%c\n"
-                "Clock Rate: %.2fMHz\n\n\n"
+                "Clock Rate: %.2fMHz\n"
+                "Check code: 0x%016llX\n"
+                "Endianness: %s\n\n\n"
                 "Press START to return.\n",
                 menu->load.rom_info.boot_address,
                 (menu->load.rom_info.libultra.version / 10.0f), menu->load.rom_info.libultra.revision,
-                menu->load.rom_info.clock_rate
+                menu->load.rom_info.clock_rate,
+                menu->load.rom_info.check_code,
+                format_rom_endianness(menu->load.rom_info.endianness)
             );
         }
 
