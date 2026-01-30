@@ -468,14 +468,16 @@ static void draw (menu_t *menu, surface_t *d) {
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_CENTER, VALIGN_TOP,
-            "%s\n",
-            rom_filename
+            "%s\n"
+            "%.20s\n",
+            rom_filename,
+            menu->load.rom_info.title
         );
 
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
-            "\n\n\t%.120s\n",
+            "\n\n\n\t%.120s\n",
             format_rom_description(menu)
             
         );
