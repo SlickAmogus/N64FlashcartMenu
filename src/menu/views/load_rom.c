@@ -485,21 +485,25 @@ static void draw (menu_t *menu, surface_t *d) {
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
-            "\n\n\n\n\n\n\n\n\n\n\n\n\n"
-            "Datel Cheats:\t\t%s\n"
-            "Patches:\t\t\t%s\n"
+            "\n\n\n\n\n\n\n\n\n\n\n"
+            "Save type:\t\t%s\n"
             "TV region:\t\t%s\n"
+            "\n"
             "Expansion PAK:\t%s\n"
             "Rumble PAK:\t\t%s\n"
             "Transfer PAK:\t\t%s\n"
-            "Save type:\t\t%s\n",
-            format_boolean_type(menu->load.rom_info.settings.cheats_enabled),
-            format_boolean_type(menu->load.rom_info.settings.patches_enabled),
+            "\n"
+            "Datel Cheats:\t\t%s\n"
+            "Patches:\t\t\t%s\n"
+            ,
+            
+            format_rom_save_type(rom_info_get_save_type(&menu->load.rom_info), menu->load.rom_info.features.controller_pak),
             format_rom_tv_type(rom_info_get_tv_type(&menu->load.rom_info)),
             format_rom_expansion_pak_info(menu->load.rom_info.features.expansion_pak),
             format_rom_pak_feature_info(menu->load.rom_info.features.rumble_pak),
             format_rom_pak_feature_info(menu->load.rom_info.features.transfer_pak),
-            format_rom_save_type(rom_info_get_save_type(&menu->load.rom_info), menu->load.rom_info.features.controller_pak)
+            format_boolean_type(menu->load.rom_info.settings.cheats_enabled),
+            format_boolean_type(menu->load.rom_info.settings.patches_enabled)
         );
 
         ui_components_actions_bar_text_draw(
