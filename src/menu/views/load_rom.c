@@ -225,7 +225,7 @@ static const char *format_age_rating (uint32_t age_rating) {
     if (age_rating >= 18) {
         return "Adults Only";
     }
-    else if (age_rating == 17) {
+    else if (age_rating >= 17) {
         return "Mature";
     }
     else if (age_rating >= 13) {
@@ -234,10 +234,10 @@ static const char *format_age_rating (uint32_t age_rating) {
     else if (age_rating >= 10) {
         return "Everyone 10+";
     }
-    else if (age_rating == 1) {
+    else if (age_rating > 0) {
         return "Everyone";
     }
-    if (age_rating == 0) {
+    else if (age_rating == 0) {
         return "None";
     }
     else {
