@@ -540,6 +540,7 @@ static void draw (menu_t *menu, surface_t *d) {
                 "Release Date: %s\n"
                 "Author: %s\n"
                 "Website: %s\n"
+                "License: %s\n"
                 "Game code: %c%c%c%c\n"
                 "Media type: %s\n"
                 "Variant: %s\n"
@@ -551,6 +552,7 @@ static void draw (menu_t *menu, surface_t *d) {
                 menu->load.rom_info.meta.release_date,
                 menu->load.rom_info.meta.author,
                 menu->load.rom_info.meta.website,
+                menu->load.rom_info.meta.osi_license,
                 menu->load.rom_info.game_code[0], menu->load.rom_info.game_code[1], menu->load.rom_info.game_code[2], menu->load.rom_info.game_code[3],
                 format_rom_media_type(menu->load.rom_info.category_code),
                 format_rom_destination_market(menu->load.rom_info.destination_code),
