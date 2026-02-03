@@ -21,6 +21,14 @@ This file contains focused, actionable knowledge to help an assistant become pro
 - Building assets uses `N64_MKFONT`, `N64_AUDIOCONV`, and `N64_MKSPRITE` tools (see `Makefile` rules that produce `filesystem/*.font64`, `*.wav64`, `*.sprite`). Source assets live under `assets/`.
 - Documentation site is produced with DocFX: use `docfx docfx.json --serve` (see `docfx.json` and `docs/` markdown files).
 
+### External resources & references
+- libDragon: [https://github.com/DragonMinded/libdragon/tree/preview](https://github.com/DragonMinded/libdragon/tree/preview) — toolchain, runtime, and N64 programming reference. There are also docs at [https://github.com/DragonMinded/libdragon/wiki](https://github.com/DragonMinded/libdragon/wiki) that might be helpful.
+- N64brew: [n64brew.dev](https://n64brew.dev/) — community site with tutorials, guides, and references for N64 homebrew development.
+- Flashcart docs:
+  - 64drive: [64drive](https://64drive.retroactive.be/support.php) for specifications, manuals, firmware.
+  - EverDrive64: [https://krikzz.com/pub/support/everdrive-64/](https://krikzz.com/pub/support/everdrive-64/) for manuals, firmware and example source.
+  - SummerCart64: [https://github.com/Polprzewodnikowy/summercart64](https://github.com/Polprzewodnikowy/SummerCart64) for all details.
+
 ### Key directories & files to inspect
 - [src/](src/) — application source (entry: `src/main.c`).
 - [src/flashcart/](src/flashcart/) — per-flashcart drivers (64drive, sc64, ed64). Update here for cart-specific behavior.
