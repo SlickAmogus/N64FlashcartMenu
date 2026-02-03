@@ -576,7 +576,6 @@ static flashcart_err_t sc64_load_64dd_disk (char *disk_path, flashcart_disk_para
     uint32_t mapping_offset = DISK_MAPPING_ROM_OFFSET;
     sc64_drive_type_t drive_type = (disk_parameters->development_drive ? DRIVE_TYPE_DEVELOPMENT : DRIVE_TYPE_RETAIL);
 
-    // TODO: Support loading multiple disks
     for (mapping.count = 0; mapping.count < 1; mapping.count++) {
         disk_load_thb_table(disk_parameters++, &mapping.disks[mapping.count].thb_table, &mapping_offset);
         if (disk_load_sector_table(disk_path++, &mapping.disks[mapping.count].sector_table, &mapping_offset)) {
@@ -600,7 +599,7 @@ static flashcart_err_t sc64_load_64dd_disk (char *disk_path, flashcart_disk_para
         { CFG_ID_DD_SD_ENABLE, true },
         { CFG_ID_DD_DRIVE_TYPE, drive_type },
         { CFG_ID_DD_DISK_STATE, DISK_STATE_INSERTED },
-        { CFG_ID_BUTTON_MODE, BUTTON_MODE_DD_DISK_SWAP },
+        { CFG_ID_BUTTON_MODE, BUTTON_MODE_NONE },
     };
 
     for (unsigned int i = 0; i < sizeof(config) / sizeof(config[0]); i++) {

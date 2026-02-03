@@ -351,6 +351,32 @@ flashcart_err_t flashcart_load_64dd_disk (char *disk_path, flashcart_disk_parame
     return flashcart->load_64dd_disk(disk_path, disk_parameters);
 }
 
+/**
+* @brief Load 64DD disks into the flashcart.
+*
+* @param disk_path Path to the disk file.
+* @param disk_parameters Pointer to the disk parameters.
+* @return flashcart_err_t Error code.
+*/
+flashcart_err_t flashcart_load_64dd_disks (char *disk_path, flashcart_disk_parameters_t *disk_parameters, char **swap_disk_paths, int swap_disk_count) {
+    if (!flashcart->load_64dd_disks) {
+        return FLASHCART_ERR_FUNCTION_NOT_SUPPORTED;
+    }
+
+    if ((disk_path == NULL) || (disk_parameters == NULL)) {
+        return FLASHCART_ERR_ARGS;
+    }
+
+    return flashcart->load_64dd_disks(disk_path, disk_parameters, swap_disk_paths, swap_disk_count);
+
+}
+
+/**
+ * @brief Set the next boot mode for the flashcart.
+ * 
+ * @param boot_mode The boot mode to set.
+ * @return flashcart_err_t Error code.
+ */
 flashcart_err_t flashcart_set_next_boot_mode (flashcart_reboot_mode_t boot_mode) {
     if (!flashcart->set_next_boot_mode) {
         return FLASHCART_ERR_FUNCTION_NOT_SUPPORTED;
