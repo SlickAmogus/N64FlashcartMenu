@@ -105,6 +105,7 @@ static flashcart_t *flashcart = &((flashcart_t) {
     .load_save = dummy_load_save,
     .load_64dd_ipl = NULL,
     .load_64dd_disk = NULL,
+    .load_64dd_disks = NULL,
     .set_save_type = dummy_set_save_type,
     .set_save_writeback = NULL,
     .set_next_boot_mode = NULL,
