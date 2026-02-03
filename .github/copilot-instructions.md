@@ -12,7 +12,7 @@ This file contains focused, actionable knowledge to help an assistant become pro
 - Useful targets:
   - `make all` — full build + copies for 64drive/ED64/SC64
   - `make run` — builds then deploys via `remotedeploy.sh` (or `localdeploy.bat` on Windows)
-  - `make run-debug`, `make run-debug-upload` — debug-deploy helpers
+  - `make run-debug`, `make run-debug-upload` — debug-deploy helpers (showing debugger output over serial)
   - `make clean` — removes build and output directories
   - `make format` — runs `clang-format` on `src` (excludes `src/libs`)
 
@@ -52,6 +52,7 @@ This file contains focused, actionable knowledge to help an assistant become pro
 ### Tests & linting
 - There are no automated unit tests currently present. `Makefile` has a commented `test` placeholder ready for action.
 - Use `make format` to apply `clang-format` across the repository sources.
+- Manual testing: build the ROM and run on hardware to verify changes. Use `make run-debug` for serial output during testing reading the statements from `debugf()`.
 
 ### Where to look for documentation and help
 - User/developer docs: `docs/*.md` and generated `_site/` HTML.
