@@ -12,20 +12,21 @@
 - **Bug Fixes**
 	- Neon64 1Mbit SRAM.
 
-
 - **Documentation**
-	- Other minor fixes.
+	- Minor fixes.
 
 - **Refactor**
-	- PAL60.
-	- Age ratings.
-	- rom metadata.
+	- PAL60 (using new libdragon support).
+	- Age ratings (align with homebrew metadata standard).
+	- rom metadata (align with homebrew metadata standard, still requires zip extraction support).
 
 - **Other**
 	- Updated libDragon SDK.
+	- Updated miniz lib.
 	- Add docfx devcontiner.
 	- Remove rolling prerelease (all releases to main should be tagged).
-	- add AI repo instructions.
+	- Added AI instructions to repo.
+	- Improved disk view.
 
 ### Breaking changes
 - None.
@@ -33,7 +34,7 @@
 
 ### Current known Issues
 - Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
-- Fast Rebooting a 64DD disk once will result in a blank screen. Twice will return to menu. This is expected until disk swapping is implemented.
+- Fast Rebooting a 64DD disk once will result in a blank screen. Twice will return to menu. This is expected until disk swapping is fully implemented.
 - Some users have reported crashes in Zelda OOT (anti piracy checks). Menu V0.2.0 works as expected.
 - A user has reported that the menu crashes with a CPU exception. Menu V0.2.0 works as expected.
 
