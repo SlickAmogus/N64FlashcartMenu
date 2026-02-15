@@ -40,14 +40,14 @@ typedef struct fat_file_attributes {
 } fat_file_attributes_t;
 
 
-// typedef struct zip_file_attributes {
-//     bool is_directory; /**< Indicates if the entry is a directory */
-//     bool is_encrypted; /**< Indicates if the entry is encrypted */
-//     time_t m_time;     /**< Last modification time */
-//     uint64_t m_uncomp_size; /**< Uncompressed size of the file */
-//     uint64_t m_comp_size;   /**< Compressed size of the file */
-//     uint32_t m_crc32;       /**< CRC32 checksum of the file */
-// } zip_file_attributes_t;
+typedef struct zip_file_attributes {
+    // bool is_directory; /**< Indicates if the entry is a directory */
+    // bool is_encrypted; /**< Indicates if the entry is encrypted */
+    // time_t m_time;     /**< Last modification time */
+    // uint64_t m_uncomp_size; /**< Uncompressed size of the file */
+    uint64_t compressed_size;                   /**< File size in bytes while compressed */
+    uint32_t crc32;                             /**< Checksum for compressed files */
+} zip_file_attributes_t;
 
 
 typedef struct pak_file_attributes {
@@ -68,8 +68,7 @@ typedef struct {
     time_t mtime;                               /**< Last modification time */
     uint64_t size;                              /**< File size in bytes */
     fat_file_attributes_t fat_file_attributes;  /**< FAT file attributes */
-    uint64_t compressed_size;                   /**< File size in bytes while compressed */
-    uint32_t crc32;                             /**< Checksum for compressed files */
+    zip_file_attributes_t zip_file_attributes;  /**< ZIP file attributes */
     pak_file_attributes_t pak_file_attributes;  /**< Additional attributes for pak files */
 } file_info_t;
 

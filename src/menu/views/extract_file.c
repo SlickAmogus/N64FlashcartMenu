@@ -83,6 +83,11 @@ static void draw (menu_t *menu, surface_t *d) {
     } else {
         ui_components_layout_draw();
 
+        zip_file_attributes_t zip_info = {
+            .compressed_size = st.m_comp_size,
+            .crc32 = st.m_crc32
+        };
+
         file_info_t info = {
             st.m_is_directory,
             true,
@@ -90,8 +95,7 @@ static void draw (menu_t *menu, surface_t *d) {
             st.m_time,
             st.m_uncomp_size,
             {0},
-            st.m_comp_size,
-            st.m_crc32,
+            zip_info,
             {0}
         };
         ui_components_file_info_draw(st.m_filename, &info);

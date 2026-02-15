@@ -114,7 +114,7 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
     const char *file_type = format_file_type(filename, info);
     const char *file_mode = info->directory ? "Directory" : "File";
     const char *file_access = info->encrypted ? "(Encrypted)" : info->writeable ? "" : "(Read only)";
-    if (info->compressed_size > 0) {
+    if (info->zip_file_attributes.compressed_size > 0) {
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
@@ -129,13 +129,13 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             " Modified: %s"
             " CRC32: %08X",
             info->size,
-            info->compressed_size,
+            info->zip_file_attributes.compressed_size,
             file_mode,
             file_access,
             format_fat_file_attributes_type(filename, info),
             file_type,
             ctime(&info->mtime),
-            info->crc32
+            info->zip_file_attributes.crc32
         );
     } else {
         ui_components_main_text_draw(

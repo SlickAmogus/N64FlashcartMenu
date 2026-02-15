@@ -67,8 +67,7 @@ void view_file_info_init (menu_t *menu) {
             .mtime = st.st_mtime,
             .size = st.st_size,
             .fat_file_attributes = {0},
-            .compressed_size = false,
-            .crc32 = 0,
+            .zip_file_attributes = {0},
             .pak_file_attributes = {0}
         };
     }
