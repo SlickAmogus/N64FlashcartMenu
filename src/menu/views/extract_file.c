@@ -89,10 +89,10 @@ static void draw (menu_t *menu, surface_t *d) {
             st.m_is_encrypted,
             st.m_time,
             st.m_uncomp_size,
+            {0},
             st.m_comp_size,
             st.m_crc32,
-            false,
-            false
+            {0}
         };
         ui_components_file_info_draw(st.m_filename, &info);
 

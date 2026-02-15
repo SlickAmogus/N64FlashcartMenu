@@ -8,10 +8,10 @@ static struct stat st;
 static file_info_t info;
 
 static void process (menu_t *menu) {
-    if (info.is_controller_pak_dump && menu->actions.enter) {
+    if (info.pak_file_attributes.is_controller_pak_dump && menu->actions.enter) {
         sound_play_effect(SFX_ENTER);
         menu->next_mode = MENU_MODE_CONTROLLER_PAK_DUMP_INFO;
-    } else if (info.is_controller_pak_dump_note  && menu->actions.enter) {
+    } else if (info.pak_file_attributes.is_controller_pak_dump_note  && menu->actions.enter) {
         sound_play_effect(SFX_ENTER);
         menu->next_mode = MENU_MODE_CONTROLLER_PAK_DUMP_NOTE_INFO;
     } else if (menu->actions.back) {
@@ -29,13 +29,13 @@ static void draw (menu_t *menu, surface_t *d) {
 
     ui_components_file_info_draw(menu->browser.entry->name, &info);
 
-    if (info.is_controller_pak_dump) {
+    if (info.pak_file_attributes.is_controller_pak_dump) {
         ui_components_actions_bar_text_draw(STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
             "A: Restore to Controller Pak\n"
             "B: Back"
         );
-    } else if (info.is_controller_pak_dump_note) {
+    } else if (info.pak_file_attributes.is_controller_pak_dump_note) {
         ui_components_actions_bar_text_draw(STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
             "A: Restore note to Controller Pak\n"
@@ -66,10 +66,10 @@ void view_file_info_init (menu_t *menu) {
             .encrypted = false,
             .mtime = st.st_mtime,
             .size = st.st_size,
-            .compressed = false,
+            .fat_file_attributes = {0},
+            .compressed_size = false,
             .crc32 = 0,
-            .is_controller_pak_dump = false,
-            .is_controller_pak_dump_note = false,
+            .pak_file_attributes = {0}
         };
     }
 

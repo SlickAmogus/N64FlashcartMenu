@@ -51,10 +51,10 @@ static const char *format_file_type(char *name, file_info_t *info) {
     } else if (file_has_extensions(name, music_extensions)) {
         return " Type: Music file\n";
     } else if (file_has_extensions(name, controller_pak_extensions)) {
-        info->is_controller_pak_dump = true;
+        info->pak_file_attributes.is_controller_pak_dump = true;
         return " Type: Controller Pak file\n";
     } else if (file_has_extensions(name, controller_pak_note_extensions)) {
-        info->is_controller_pak_dump_note = true;
+        info->pak_file_attributes.is_controller_pak_dump_note = true;
         return " Type: Controller Pak note file\n";
     } 
     else if (file_has_extensions(name, emulator_extensions)) {
@@ -63,6 +63,32 @@ static const char *format_file_type(char *name, file_info_t *info) {
         return " Type: Cheats file\n";
     }
     return " Type: Unknown file\n";
+}
+
+/**
+ * @brief Format the FAT attributes into a human-readable string.
+ *
+ * @param name The filename including the extension.
+ * @param info Pointer to the file information structure (used for flags).
+ * @return Constant string describing the FAT attributes.
+ */
+static const char *format_fat_file_attributes_type(char *name, file_info_t *info) {
+    
+    if (info->directory) {
+        return "";
+    }
+
+    // TODO: fix this to show all fat file attributes.
+
+    // Readonly
+    // Hidden
+    // System
+    // Directory
+    // Archive
+
+    // Some of them have been assigned to other fields in the file_info_t struct, and may use other POSIX file attributes (or fatfs directly) instead of the `fat_file_attributes`, 
+    // so we may need to align source files in other places.
+    return "----";
 }
 
 /**
@@ -88,7 +114,7 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
     const char *file_type = format_file_type(filename, info);
     const char *file_mode = info->directory ? "Directory" : "File";
     const char *file_access = info->encrypted ? "(Encrypted)" : info->writeable ? "" : "(Read only)";
-    if (info->compressed > 0) {
+    if (info->compressed_size > 0) {
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
@@ -98,14 +124,15 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             "\n"
             " Size: %d bytes\n"
             " Compressed: %d bytes\n"
-            " Attributes: %s %s\n"
+            " Attributes: %s %s %s\n"
             "%s"
             " Modified: %s"
             " CRC32: %08X",
             info->size,
-            info->compressed,
+            info->compressed_size,
             file_mode,
             file_access,
+            format_fat_file_attributes_type(filename, info),
             file_type,
             ctime(&info->mtime),
             info->crc32
@@ -119,12 +146,13 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             "\n"
             "\n"
             " Size: %d bytes\n"
-            " Attributes: %s %s\n"
+            " Attributes: %s %s %s\n"
             "%s"
             " Modified: %s",
             info->size,
             file_mode,
             file_access,
+            format_fat_file_attributes_type(filename, info),
             file_type,
             ctime(&info->mtime)
         );
