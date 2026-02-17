@@ -84,14 +84,14 @@ static void draw (menu_t *menu, surface_t *d) {
         ui_components_layout_draw();
 
         zip_file_attributes_t zip_info = {
+            true,
+            st.m_is_encrypted,
             .compressed_size = st.m_comp_size,
             .crc32 = st.m_crc32
         };
 
         file_info_t info = {
             st.m_is_directory,
-            true,
-            st.m_is_encrypted,
             st.m_time,
             st.m_uncomp_size,
             {0},

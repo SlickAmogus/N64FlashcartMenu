@@ -113,7 +113,7 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
 
     const char *file_type = format_file_type(filename, info);
     const char *file_mode = info->directory ? "Directory" : "File";
-    const char *file_access = info->encrypted ? "(Encrypted)" : info->writeable ? "" : "(Read only)";
+    const char *zip_file_access = info->zip_file_attributes.encrypted ? "(Encrypted)" : info->zip_file_attributes.writeable ? "" : "(Read only)";
     if (info->zip_file_attributes.compressed_size > 0) {
         ui_components_main_text_draw(
             STL_DEFAULT,
@@ -122,8 +122,8 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             "\n"
             "\n"
             "\n"
-            " Size: %d bytes\n"
-            " Compressed: %d bytes\n"
+            " Actual Size: %d bytes\n"
+            " Compressed Size: %d bytes\n"
             " Attributes: %s %s %s\n"
             "%s"
             " Modified: %s"
@@ -131,7 +131,7 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             info->size,
             info->zip_file_attributes.compressed_size,
             file_mode,
-            file_access,
+            zip_file_access,
             format_fat_file_attributes_type(filename, info),
             file_type,
             ctime(&info->mtime),
@@ -146,12 +146,11 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             "\n"
             "\n"
             " Size: %d bytes\n"
-            " Attributes: %s %s %s\n"
+            " Attributes: %s %s\n"
             "%s"
             " Modified: %s",
             info->size,
             file_mode,
-            file_access,
             format_fat_file_attributes_type(filename, info),
             file_type,
             ctime(&info->mtime)
