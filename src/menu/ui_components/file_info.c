@@ -137,7 +137,23 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             ctime(&info->mtime),
             info->zip_file_attributes.crc32
         );
-    } else {
+    } else if (info->directory) {
+        ui_components_main_text_draw(
+            STL_DEFAULT,
+            ALIGN_LEFT, VALIGN_TOP,
+            "\n"
+            "\n"
+            "\n"
+            "\n"
+            " Attributes: %s %s\n"
+            "%s"
+            " Modified: %s",
+            file_mode,
+            format_fat_file_attributes_type(filename, info),
+            file_type,
+            ctime(&info->mtime)
+        );
+    }  else {
         ui_components_main_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
