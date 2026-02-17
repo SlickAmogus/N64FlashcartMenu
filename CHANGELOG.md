@@ -7,7 +7,7 @@
 ## Release Notes 2026-Vnext
 
 - **New Features**
-	- None.
+	- Browser now allows hiding files and folders with hidden attributes set (thanks [Xeroxxx](https://github.com/Xeroxxx)).
 
 - **Bug Fixes**
 	- Neon64 1Mbit SRAM.
