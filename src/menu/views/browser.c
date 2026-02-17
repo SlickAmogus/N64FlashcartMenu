@@ -11,7 +11,6 @@
 #include "utils/fs.h"
 #include "views.h"
 #include "../sound.h"
-#include <fat.h>
 
 static const char *archive_extensions[] = { "zip", NULL };
 static const char *cheat_extensions[] = {"cht", "cheats", "datel", "gameshark", NULL};
