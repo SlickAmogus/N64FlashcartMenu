@@ -93,6 +93,7 @@ FONTS = \
 SOUNDS = \
 	cursorsound.wav \
 	back.wav \
+	bgm.wav \
 	enter.wav \
 	error.wav \
 	settings.wav
