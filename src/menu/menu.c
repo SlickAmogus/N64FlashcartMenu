@@ -83,8 +83,8 @@ static void menu_init (boot_params_t *boot_params) {
     path_push(path, MENU_ROM_LOAD_HISTORY_FILE);
     bookkeeping_init(path_get(path));
     bookkeeping_load(&menu->bookkeeping);
-    menu->load.load_history_id = -1; //FIXME: this should be moved to the bookkeeping_load function, or the bookkeeping struct should be initialized with these values.
-    menu->load.load_favorite_id = -1; // same as above, should be moved to bookkeeping_load or bookkeeping struct initialization.
+    menu->load.load_history_id = -1;
+    menu->load.load_favorite_id = -1;
     path_pop(path);
 
     // Force interlacing off in VI settings for TVs and other devices that struggle with interlaced video input.
