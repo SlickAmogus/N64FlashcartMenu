@@ -682,9 +682,9 @@ void view_load_rom_init (menu_t *menu) {
             path_free(menu->load.rom_path);
         }
 
-        if(menu->load.load_history_id != -1) {
+        if(menu->load.load_history_id != -1 && file_exists(menu->bookkeeping.history_items[menu->load.load_history_id].primary_path)) {
             menu->load.rom_path = path_clone(menu->bookkeeping.history_items[menu->load.load_history_id].primary_path);
-        } else if(menu->load.load_favorite_id != -1) {
+        } else if(menu->load.load_favorite_id != -1 && file_exists(menu->bookkeeping.favorite_items[menu->load.load_favorite_id].primary_path)) {
             menu->load.rom_path = path_clone(menu->bookkeeping.favorite_items[menu->load.load_favorite_id].primary_path);
         } else {
             menu->load.rom_path = path_clone_push(menu->browser.directory, menu->browser.entry->name);
