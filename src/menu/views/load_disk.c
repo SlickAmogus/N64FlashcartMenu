@@ -6,7 +6,7 @@
 #include "../bookkeeping.h"
 #include <string.h>
 
-#define DISK_SLOTS_MAX 4 // Maximum number of disk slots supported
+#define DISK_SLOTS_MAX 3 // Maximum number of disk slots supported (excluding the primary disk)
 
 static component_boxart_t *boxart;
 static char *disk_filename;
