@@ -17,6 +17,9 @@ static settings_t init = {
     .default_directory = "/",
     .use_saves_folder = true,
     .show_saves_folder = false,
+    .show_save_files = false,
+    .show_cheat_files = false,
+    .show_rom_configuration_files = false,
     .soundfx_enabled = false,
     .bgm_enabled = false,
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -56,6 +59,9 @@ void settings_load (settings_t *settings) {
     settings->default_directory = strdup(mini_get_string(ini, "menu", "default_directory", init.default_directory));
     settings->use_saves_folder = mini_get_bool(ini, "menu", "use_saves_folder", init.use_saves_folder);
     settings->show_saves_folder = mini_get_bool(ini, "menu", "show_saves_folder", init.show_saves_folder);
+    settings->show_save_files = mini_get_bool(ini, "menu", "show_save_files", init.show_save_files);
+    settings->show_cheat_files = mini_get_bool(ini, "menu", "show_cheat_files", init.show_cheat_files);
+    settings->show_rom_configuration_files = mini_get_bool(ini, "menu", "show_rom_configuration_files", init.show_rom_configuration_files);
     settings->soundfx_enabled = mini_get_bool(ini, "menu", "soundfx_enabled", init.soundfx_enabled);
     settings->bgm_enabled = mini_get_bool(ini, "menu", "bgm_enabled", init.bgm_enabled);
 
@@ -86,6 +92,9 @@ void settings_save (settings_t *settings) {
     mini_set_string(ini, "menu", "default_directory", settings->default_directory);
     mini_set_bool(ini, "menu", "use_saves_folder", settings->use_saves_folder);
     mini_set_bool(ini, "menu", "show_saves_folder", settings->show_saves_folder);
+    mini_set_bool(ini, "menu", "show_save_files", settings->show_save_files);
+    mini_set_bool(ini, "menu", "show_cheat_files", settings->show_cheat_files);
+    mini_set_bool(ini, "menu", "show_rom_configuration_files", settings->show_rom_configuration_files);
     mini_set_bool(ini, "menu", "soundfx_enabled", settings->soundfx_enabled);
     mini_set_bool(ini, "menu", "bgm_enabled", settings->bgm_enabled);
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
