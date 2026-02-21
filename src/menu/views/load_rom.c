@@ -709,7 +709,8 @@ void view_load_rom_init (menu_t *menu) {
         menu->load.rom_path = NULL;
         //disable the attempt at loading the favorite / history
         menu->load.load_history_id = -1;
-        menu->load.load_favorite_id = -1;        
+        menu->load.load_favorite_id = -1;
+        // FIXME: use bookkeeping_favorite_remove() here instead of just showing an error and leaving the broken favorite / history item in place
         menu_show_error(menu, convert_error_message(err));
         return;
     }
