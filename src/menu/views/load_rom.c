@@ -707,6 +707,9 @@ void view_load_rom_init (menu_t *menu) {
     if (err != ROM_OK) {
         path_free(menu->load.rom_path);
         menu->load.rom_path = NULL;
+        //disable the attempt at loading the favorite / history
+        menu->load.load_history = -1;
+        menu->load.load_favorite = -1;        
         menu_show_error(menu, convert_error_message(err));
         return;
     }
