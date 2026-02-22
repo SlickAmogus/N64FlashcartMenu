@@ -238,6 +238,14 @@ rom_err_t rom_config_override_save_type(path_t *path, rom_info_t *rom_info, rom_
 rom_tv_type_t rom_info_get_tv_type(rom_info_t *rom_info);
 
 /**
+ * `@brief` Free dynamically allocated metadata fields in ROM information structure.
+ * 
+ * `@param` rom_info Pointer to the ROM information structure
+ * `@note` Only frees the meta struct fields, not the rom_info_t itself
+ */
+void rom_info_free_meta(rom_info_t *rom_info);
+
+/**
  * @brief Override the TV type for the ROM.
  * 
  * @param path Pointer to the path structure

@@ -303,6 +303,7 @@ static void deinit (void) {
 static bool load_rom(menu_t* menu, path_t* rom_path) {
     if(path_has_value(rom_path)) {
         if (menu->load.rom_path) {
+            rom_info_free_meta(&menu->load.rom_info);
             path_free(menu->load.rom_path);
             menu->load.rom_path = NULL;
         }
@@ -311,6 +312,7 @@ static bool load_rom(menu_t* menu, path_t* rom_path) {
 
         rom_err_t err = rom_config_load(rom_path, &menu->load.rom_info);
         if (err != ROM_OK) {
+            rom_info_free_meta(&menu->load.rom_info);
             path_free(menu->load.rom_path);
             menu->load.rom_path = NULL;
             menu_show_error(menu, convert_rom_error_message(err));

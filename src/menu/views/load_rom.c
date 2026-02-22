@@ -679,6 +679,7 @@ void view_load_rom_init (menu_t *menu) {
     if (!menu->settings.rom_autoload_enabled) {
 #endif
         if (menu->load.rom_path) {
+            rom_info_free_meta(&menu->load.rom_info);
             path_free(menu->load.rom_path);
         }
 
@@ -705,6 +706,7 @@ void view_load_rom_init (menu_t *menu) {
     debugf("Load ROM: loading ROM info from %s\n", path_get(menu->load.rom_path));
     rom_err_t err = rom_config_load(menu->load.rom_path, &menu->load.rom_info);
     if (err != ROM_OK) {
+        rom_info_free_meta(&menu->load.rom_info);
         path_free(menu->load.rom_path);
         menu->load.rom_path = NULL;
         //disable the attempt at loading the favorite / history

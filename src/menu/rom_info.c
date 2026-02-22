@@ -794,6 +794,37 @@ static void load_rom_meta_from_file (path_t *path, rom_info_t *rom_info) {
     path_free(rom_info_meta_path);
 }
 
+void rom_info_free_meta(rom_info_t *rom_info) {
+    if (!rom_info) {
+        return;
+    }
+    
+    if (rom_info->meta.name) {
+        free(rom_info->meta.name);
+        rom_info->meta.name = NULL;
+    }
+    if (rom_info->meta.author) {
+        free(rom_info->meta.author);
+        rom_info->meta.author = NULL;
+    }
+    if (rom_info->meta.release_date) {
+        free(rom_info->meta.release_date);
+        rom_info->meta.release_date = NULL;
+    }
+    if (rom_info->meta.osi_license) {
+        free(rom_info->meta.osi_license);
+        rom_info->meta.osi_license = NULL;
+    }
+    if (rom_info->meta.website) {
+        free(rom_info->meta.website);
+        rom_info->meta.website = NULL;
+    }
+    if (rom_info->meta.short_description) {
+        free(rom_info->meta.short_description);
+        rom_info->meta.short_description = NULL;
+    }
+}
+
 static void load_rom_config_from_file (path_t *path, rom_info_t *rom_info) {
     path_t *rom_info_path = path_clone(path);
 
