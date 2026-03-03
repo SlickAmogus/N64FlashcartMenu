@@ -51,6 +51,7 @@ static bool show_single_note_dump_confirm_message;
 static bool show_single_note_delete_confirm_message;
 static bool show_format_controller_pak_confirm_message;
 static bool show_complete_write_confirm_message;
+static bool show_single_note_write_info_message;
 
 static bool start_complete_dump;
 static bool start_single_note_dump;
@@ -71,6 +72,7 @@ static void reset_vars(){
     show_single_note_delete_confirm_message = false;
     show_format_controller_pak_confirm_message = false;
     show_complete_write_confirm_message = false;
+    show_single_note_write_info_message = false;
     start_complete_dump = false;
     start_single_note_dump = false;
     start_single_note_delete = false;
@@ -192,11 +194,16 @@ static void active_restore_controller_pak_message(menu_t *menu, void *arg) {
     show_complete_write_confirm_message = true;
 }
 
+static void active_restore_controller_pak_note_message(menu_t *menu, void *arg) {
+    show_single_note_write_info_message = true;
+}
+
 static component_context_menu_t options_context_menu = {
     .list = {
         { .text = "Format Controller Pak", .action = active_format_controller_pak_message },
         { .text = "Delete single note", .action = active_single_note_delete_message },
         { .text = "Restore a dump to the Controller Pak", .action = active_restore_controller_pak_message },
+        { .text = "Restore a note to the Controller Pak", .action = active_restore_controller_pak_note_message },
         COMPONENT_CONTEXT_MENU_LIST_END,
     }
 };
@@ -443,6 +450,7 @@ static void process (menu_t *menu) {
 
         if (!show_complete_dump_confirm_message && 
             !show_complete_write_confirm_message && 
+            !show_single_note_write_info_message &&
             !show_single_note_dump_confirm_message &&
             !show_single_note_delete_confirm_message &&
             !show_format_controller_pak_confirm_message) {
@@ -482,6 +490,7 @@ static void process (menu_t *menu) {
                 use_rtc && 
                 !show_complete_dump_confirm_message && 
                 !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_single_note_delete_confirm_message &&
                 !show_format_controller_pak_confirm_message) {
@@ -493,7 +502,8 @@ static void process (menu_t *menu) {
             // Pressing L or Z : dump a single note
             else if (menu->actions.lz_context && 
                 use_rtc && 
-                !show_complete_write_confirm_message && 
+                !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_complete_dump_confirm_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_single_note_delete_confirm_message &&
@@ -505,6 +515,7 @@ static void process (menu_t *menu) {
 
             if (show_complete_dump_confirm_message && 
                 !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_single_note_delete_confirm_message &&
                 !show_format_controller_pak_confirm_message) {
@@ -517,7 +528,8 @@ static void process (menu_t *menu) {
                     show_complete_dump_confirm_message = false;
                 }
                 return;
-            } else if (show_complete_write_confirm_message && 
+            } else if (show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_complete_dump_confirm_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_single_note_delete_confirm_message &&
@@ -527,9 +539,21 @@ static void process (menu_t *menu) {
                     show_complete_write_confirm_message = false;                    
                 }
                 return;
+            } else if (show_single_note_write_info_message &&
+                !show_complete_write_confirm_message &&
+                !show_complete_dump_confirm_message &&
+                !show_single_note_dump_confirm_message &&
+                !show_single_note_delete_confirm_message &&
+                !show_format_controller_pak_confirm_message) {
+                if (menu->actions.back) {
+                    sound_play_effect(SFX_EXIT);
+                    show_single_note_write_info_message = false;                    
+                }
+                return;
             } else if (show_single_note_dump_confirm_message && 
                 !show_complete_dump_confirm_message &&
                 !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_single_note_delete_confirm_message &&
                 !show_format_controller_pak_confirm_message) {
                 if (menu->actions.enter) {
@@ -550,6 +574,7 @@ static void process (menu_t *menu) {
             }  else if (show_single_note_delete_confirm_message && 
                 !show_complete_dump_confirm_message &&
                 !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_format_controller_pak_confirm_message) {
                 if (menu->actions.enter) {
@@ -570,6 +595,7 @@ static void process (menu_t *menu) {
             } else if (show_format_controller_pak_confirm_message && 
                 !show_complete_dump_confirm_message &&
                 !show_complete_write_confirm_message &&
+                !show_single_note_write_info_message &&
                 !show_single_note_dump_confirm_message &&
                 !show_single_note_delete_confirm_message) {
                 if (menu->actions.enter) {
@@ -925,7 +951,13 @@ static void draw (menu_t *menu, surface_t *d) {
             " with the extension \".mpk\" or \".pak\".\n\n"
             "B: Back"
         );   
-    } 
+    } else if (show_single_note_write_info_message) {
+        ui_components_messagebox_draw(
+            "To write a single note, browse to a file"
+            " with the extension \".paknote\".\n\n"
+            "B: Back"
+        );   
+    }
 
     if (show_single_note_dump_confirm_message &&
         !start_single_note_dump) {
