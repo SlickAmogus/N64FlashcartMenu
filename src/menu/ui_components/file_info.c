@@ -73,7 +73,8 @@ static const char *format_file_type(char *name, file_info_t *info) {
  * @return Constant string describing the FAT attributes.
  */
 static const char *format_fat_file_attributes_type(char *name, file_info_t *info) {
-    static char fat_attributes[5]; // 4 attributes + null terminator (R, H, S, A)
+    static char fat_attributes[5]; // 4 attributes + null terminator (Read-only, Hidden, System, Archive)
+    // FIXME: we only care about the read-only and hidden attributes. The system and archive attributes are not relevant to the user, and just add confusion. Consider removing them.
 
     snprintf(fat_attributes, sizeof(fat_attributes), "%s%s%s%s",
         (info->fat_file_attributes.is_read_only ? "R" : "-"), // Read-only attribute
