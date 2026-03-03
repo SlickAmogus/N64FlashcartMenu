@@ -23,6 +23,7 @@ static const char *patch_extensions[] = { "bps", "ips", "aps", "ups", "xdelta", 
 // TODO: "eep", "sra", "srm", "fla" could be used if transfered from different flashcarts.
 static const char *save_extensions[] = { "sav", NULL };
 static const char *text_extensions[] = { "txt", "ini", "yml", "yaml", NULL };
+static const char *rom_meta_extensions[] = { "meta", "metadata", NULL };
 
 static const char *hidden_root_paths[] = {
     "/menu.bin",
@@ -151,6 +152,10 @@ static int compare_entry (const void *pa, const void *pb) {
         } else if (a->type == ENTRY_TYPE_TEXT) {
             return -1;
         } else if (b->type == ENTRY_TYPE_TEXT) {
+            return 1;
+        } else if (a->type == ENTRY_TYPE_ROM_META) {
+            return -1;
+        } else if (b->type == ENTRY_TYPE_ROM_META) {
             return 1;
         }
     }
@@ -284,6 +289,8 @@ static bool load_directory (menu_t *menu) {
                 entry->type = ENTRY_TYPE_MUSIC;
             } else if (file_has_extensions(entry->name, archive_extensions)) {
                 entry->type = ENTRY_TYPE_ARCHIVE;
+            } else if (file_has_extensions(entry->name, rom_meta_extensions)) {
+                entry->type = ENTRY_TYPE_ROM_META;
             } else {
                 entry->type = ENTRY_TYPE_OTHER;
             }
@@ -534,6 +541,9 @@ static void process (menu_t *menu) {
                 break;
             case ENTRY_TYPE_TEXT:
                 menu->next_mode = MENU_MODE_TEXT_VIEWER;
+                break;
+            case ENTRY_TYPE_ROM_META:
+                menu->next_mode = MENU_MODE_FILE_INFO; // FIXME: Implement MENU_MODE_LOAD_ROM_META.
                 break;
 
             default:

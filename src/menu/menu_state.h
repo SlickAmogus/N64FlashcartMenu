@@ -64,7 +64,8 @@ typedef enum {
     ENTRY_TYPE_SAVE,
     ENTRY_TYPE_TEXT,
     ENTRY_TYPE_ARCHIVE,
-    ENTRY_TYPE_ARCHIVED
+    ENTRY_TYPE_ARCHIVED,
+    ENTRY_TYPE_ROM_META
 } entry_type_t;
 
 /** @brief File Entry Structure */
