@@ -255,6 +255,15 @@ static bool load_directory (menu_t *menu) {
             path_pop(path);
         }
 
+        if (!menu->settings.show_cheat_files) {
+            path_push(path, info.d_name);
+            // Skip cheat files if they are hidden (this is case sensitive)
+            if (file_has_extensions(info.d_name, cheat_extensions)) {
+                hide = true;
+            }
+            path_pop(path);
+        }
+
         if (!hide) {
             menu->browser.list = realloc(menu->browser.list, (menu->browser.entries + 1) * sizeof(entry_t));
 
