@@ -156,7 +156,7 @@ void ui_components_file_info_draw(char* filename, file_info_t *info) {
             "\n"
             "\n"
             "\n"
-            " Size: %d bytes\n"
+            " Size: %llu bytes\n"
             " Attributes: %s %s\n"
             "%s"
             " Modified: %s",
