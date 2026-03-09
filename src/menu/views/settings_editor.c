@@ -38,6 +38,13 @@ static void set_show_saves_folder_type (menu_t *menu, void *arg) {
     menu->browser.reload = true;
 }
 
+static void set_show_save_files_type (menu_t *menu, void *arg) {
+    menu->settings.show_save_files = (bool)(uintptr_t)(arg);
+    settings_save(&menu->settings);
+
+    menu->browser.reload = true;
+}
+
 static void set_show_cheat_files_type (menu_t *menu, void *arg) {
     menu->settings.show_cheat_files = (bool)(uintptr_t)(arg);
     settings_save(&menu->settings);
@@ -189,6 +196,18 @@ static component_context_menu_t set_show_saves_folder_type_context_menu = {
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
+static int get_show_save_files_current_selection (menu_t *menu) {
+    return menu->settings.show_save_files ? 0 : 1;
+}
+
+static component_context_menu_t set_show_save_files_type_context_menu = {
+    .get_default_selection = get_show_save_files_current_selection,
+    .list = {
+        {.text = "On", .action = set_show_save_files_type, .arg = (void *)(uintptr_t)(true) },
+        {.text = "Off", .action = set_show_save_files_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
 static int get_show_cheat_files_current_selection (menu_t *menu) {
     return menu->settings.show_cheat_files ? 0 : 1;
 }
@@ -271,6 +290,7 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
+    { .text = "Show Save Files", .submenu = &set_show_save_files_type_context_menu },
     { .text = "Show Cheat Files", .submenu = &set_show_cheat_files_type_context_menu },
     { .text = "PAL60 Mode", .submenu = &set_pal60_type_context_menu },
     #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -340,6 +360,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     Background Music  : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
+        "     Show Save files   : %s\n"
         "     Show Cheat files  : %s\n"
         "*    PAL60 Mode        : %s\n"
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -362,6 +383,7 @@ static void draw (menu_t *menu, surface_t *d) {
         format_switch(menu->settings.bgm_enabled),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),
+        format_switch(menu->settings.show_save_files),
         format_switch(menu->settings.show_cheat_files),
         format_switch(menu->settings.pal60_enabled),
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
