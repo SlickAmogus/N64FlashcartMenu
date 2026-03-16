@@ -22,8 +22,9 @@
 	- rom metadata (align with homebrew metadata standard, still requires zip extraction support).
 
 - **Other**
-	- Updated libDragon SDK.
+	- Updated libDragon {preview} SDK.
 	- Updated miniz lib.
+	- Updated minimp3
 	- Add docfx devcontiner.
 	- Remove rolling prerelease (all releases to main should be tagged).
 	- Added AI instructions to repo.
@@ -32,6 +33,8 @@
 ### Breaking changes
 - (as of 2026-03-15) libdragon SDK now requires MI repeat mode support, (supported by latest Ares and Gopher64, A3D also works though needs the latest FW). 
 
+### Notes
+- (as of 2026-03-01) libdragon {preview} SDK now requires homebrew ROMs that use EEPROM to conform with OG wait timings. 
 
 ### Current known Issues
 - Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
