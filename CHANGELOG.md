@@ -30,7 +30,7 @@
 	- Improved disk view.
 
 ### Breaking changes
-- None.
+- (as of 2026-03-15) libdragon SDK now requires MI repeat mode support, (supported by latest Ares and Gopher64, A3D also works though needs the latest FW). 
 
 
 ### Current known Issues
