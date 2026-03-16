@@ -9,6 +9,7 @@
 #define BUILD_TIMESTAMP "Unknown"
 #endif
 
+static sys_version_t sdk_version = {0};
 
 static void process (menu_t *menu) {
     if (menu->actions.back) {
@@ -36,23 +37,27 @@ static void draw (menu_t *menu, surface_t *d) {
         "\n"
         "\n"
         "Menu version: %s\n"
+        "libdragon SDK version: %s%s (%s, %.7s)\n"
         "Build timestamp: %s\n"
         "\n"
         "Github - Website:\n"
-        " https://github.com/Polprzewodnikowy/N64FlashcartMenu\n"
+        "\thttps://github.com/Polprzewodnikowy/N64FlashcartMenu\n"
         "Authors:\n"
-        " Robin Jones / NetworkFusion\n"
-        " Mateusz Faderewski / Polprzewodnikowy\n"
+        "\tRobin Jones / NetworkFusion\n"
+        "\tMateusz Faderewski / Polprzewodnikowy\n"
         "Contributors:\n"
-        " Thank you to ALL project contributors,\n"
-        " no matter how small the commit.\n"
+        "\tThank you to ALL project contributors,\n"
+        "\tno matter how small the commit.\n"
         "OSS software used:\n"
-        " libdragon (UNLICENSE License)\n"
-        " libspng (BSD 2-Clause License)\n"
-        " mini.c (BSD 2-Clause License)\n"
-        " minimp3 (CC0 1.0 Universal)\n"
-        " miniz (MIT License)",
+        "\tlibdragon (UNLICENSE License)\n"
+        "\tlibspng (BSD 2-Clause License)\n"
+        "\tmini.c (BSD 2-Clause License)\n"
+        "\tminimp3 (CC0 1.0 Universal)\n"
+        "\tminiz (MIT License)",
         MENU_VERSION,
+        sdk_version.branch, sdk_version.dirty ? "*" : "",
+        sdk_version.commit_date,
+        sdk_version.hash,
         BUILD_TIMESTAMP
     );
 
@@ -68,7 +73,7 @@ static void draw (menu_t *menu, surface_t *d) {
 
 
 void view_credits_init (menu_t *menu) {
-    // Nothing to initialize (yet)
+    sys_get_version(&sdk_version);
 }
 
 void view_credits_display (menu_t *menu, surface_t *display) {
