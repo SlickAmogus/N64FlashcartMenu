@@ -20,6 +20,7 @@
 	- PAL60 (using new libdragon support).
 	- Age ratings (align with homebrew metadata standard).
 	- rom metadata (align with homebrew metadata standard, still requires zip extraction support).
+	- menu credits.
 
 - **Other**
 	- Updated libDragon {preview} SDK.
@@ -31,10 +32,10 @@
 	- Improved disk view.
 
 ### Breaking changes
-- (as of 2026-03-15) libdragon SDK now requires MI repeat mode support, (supported by latest Ares and Gopher64, A3D also works though needs the latest FW). 
+- (as of 2026-03-15) libdragon SDK (and this menu) now requires MI repeat mode support, (supported by latest Ares and Gopher64, A3D also works though needs the latest FW). 
 
 ### Notes
-- (as of 2026-03-01) libdragon {preview} SDK now requires homebrew ROMs that use EEPROM to conform with OG wait timings. 
+- (as of 2026-03-01) libdragon {preview} SDK now compiles ROMs that use EEPROM to conform with OG wait timings by default. 
 
 ### Current known Issues
 - Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
