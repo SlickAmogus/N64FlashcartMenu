@@ -12,6 +12,7 @@
 
 - **Bug Fixes**
 	- Neon64 1Mbit SRAM.
+	- Potential buffer overflows.
 
 - **Documentation**
 	- Minor fixes.
@@ -30,12 +31,15 @@
 	- Remove rolling prerelease (all releases to main should be tagged).
 	- Added AI instructions to repo.
 	- Improved disk view.
+	- Added an extra build option (run-debug-reboot) that aids debugging remotely without the need for uploading files to the SD card.
+	- Added menu option to CPak manager for notes restore.
 
 ### Breaking changes
 - (as of 2026-03-15) libdragon SDK (and this menu) now requires MI repeat mode support, (supported by latest Ares and Gopher64, A3D also works though needs the latest FW). 
 
 ### Notes
-- (as of 2026-03-01) libdragon {preview} SDK now compiles ROMs that use EEPROM to conform with OG wait timings by default. 
+- (as of 2026-03-01) libdragon {preview} SDK now compiles ROMs that use EEPROM to conform with OG wait timings by default.
+- Progress has been made towards disk swapping, but it is still WiP.
 
 ### Current known Issues
 - Menu sound FX may not work properly when a 64 Disk Drive is also attached (work around: turn sound FX off).
