@@ -123,6 +123,11 @@ void sound_use_sfx(bool state) {
  */
 void sound_play_effect(sound_effect_t sfx) {
     if(sfx_enabled) {
+        /* Stop any in-progress SFX. Stereo wav64 files occupy SOUND_SFX_CHANNEL
+         * and SOUND_SFX_CHANNEL+1 simultaneously; stopping both before playing
+         * prevents a mixer assertion when a new sound fires before the last ends. */
+        mixer_ch_stop(SOUND_SFX_CHANNEL);
+        mixer_ch_stop(SOUND_SFX_CHANNEL + 1);
         switch (sfx) {
             case SFX_CURSOR:
                 wav64_play(&sfx_cursor, SOUND_SFX_CHANNEL);
