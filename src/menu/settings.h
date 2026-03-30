@@ -49,6 +49,9 @@ typedef struct {
     /** @brief Enable Sound effects within the menu */
     bool soundfx_enabled;
 
+    /** @brief Background image rotation interval in seconds (0 = disabled) */
+    int bg_rotation_interval_secs;
+
     /** @brief Enable rumble feedback within the menu */
     bool rumble_enabled;
 

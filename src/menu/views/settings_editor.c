@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include "../bg_slideshow.h"
+#include "../bgm.h"
 #include "../sound.h"
 #include "../settings.h"
 #include "views.h"
@@ -9,6 +11,16 @@ static const char *format_switch (bool state) {
     switch (state) {
         case true: return "On";
         case false: return "Off";
+    }
+}
+
+static const char *format_bg_interval (int secs) {
+    switch (secs) {
+        case 30:  return "30 sec";
+        case 60:  return "1 min";
+        case 120: return "2 min";
+        case 300: return "5 min";
+        default:  return "Off";
     }
 }
 
@@ -44,6 +56,18 @@ static void set_soundfx_enabled_type (menu_t *menu, void *arg) {
     settings_save(&menu->settings);
 }
 
+static void set_bgm_enabled_type (menu_t *menu, void *arg) {
+    menu->settings.bgm_enabled = (bool)(uintptr_t)(arg);
+    bgm_set_enabled(menu->settings.bgm_enabled);
+    settings_save(&menu->settings);
+}
+
+static void set_bg_rotation_interval_type (menu_t *menu, void *arg) {
+    menu->settings.bg_rotation_interval_secs = (int)(uintptr_t)(arg);
+    bg_slideshow_set_interval(menu->settings.bg_rotation_interval_secs);
+    settings_save(&menu->settings);
+}
+
 #ifndef FEATURE_AUTOLOAD_ROM_ENABLED
 static void set_use_rom_fast_reboot_enabled_type (menu_t *menu, void *arg) {
     menu->settings.rom_fast_reboot_enabled = (bool)(uintptr_t)(arg);
@@ -70,11 +94,6 @@ static void set_show_browser_file_extensions_type(menu_t *menu, void *arg) {
 
 static void set_show_browser_rom_tags_type (menu_t *menu, void *arg) {
     menu->settings.show_browser_rom_tags = (bool)(uintptr_t)(arg);
-    settings_save(&menu->settings);
-}
-
-static void set_bgm_enabled_type (menu_t *menu, void *arg) {
-    menu->settings.bgm_enabled = (bool)(uintptr_t)(arg);
     settings_save(&menu->settings);
 }
 
@@ -124,6 +143,39 @@ static component_context_menu_t set_soundfx_enabled_type_context_menu = {
     .list = {
         {.text = "On", .action = set_soundfx_enabled_type, .arg = (void *)(uintptr_t)(true) },
         {.text = "Off", .action = set_soundfx_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_bgm_enabled_current_selection (menu_t *menu) {
+    return menu->settings.bgm_enabled ? 0 : 1;
+}
+
+static component_context_menu_t set_bgm_enabled_type_context_menu = {
+    .get_default_selection = get_bgm_enabled_current_selection,
+    .list = {
+        {.text = "On", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(true) },
+        {.text = "Off", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_bg_rotation_interval_current_selection (menu_t *menu) {
+    switch (menu->settings.bg_rotation_interval_secs) {
+        case 30:  return 0;
+        case 60:  return 1;
+        case 120: return 2;
+        case 300: return 3;
+        default:  return 4;
+    }
+}
+
+static component_context_menu_t set_bg_rotation_interval_context_menu = {
+    .get_default_selection = get_bg_rotation_interval_current_selection,
+    .list = {
+        {.text = "30 sec", .action = set_bg_rotation_interval_type, .arg = (void *)(uintptr_t)(30) },
+        {.text = "1 min",  .action = set_bg_rotation_interval_type, .arg = (void *)(uintptr_t)(60) },
+        {.text = "2 min",  .action = set_bg_rotation_interval_type, .arg = (void *)(uintptr_t)(120) },
+        {.text = "5 min",  .action = set_bg_rotation_interval_type, .arg = (void *)(uintptr_t)(300) },
+        {.text = "Off",    .action = set_bg_rotation_interval_type, .arg = (void *)(uintptr_t)(0) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
@@ -214,18 +266,6 @@ static component_context_menu_t set_show_browser_rom_tags_context_menu = {
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
-static int get_bgm_enabled_current_selection (menu_t *menu) {
-    return menu->settings.bgm_enabled ? 0 : 1;
-}
-
-static component_context_menu_t set_bgm_enabled_type_context_menu = {
-    .get_default_selection = get_bgm_enabled_current_selection,
-    .list = {
-        {.text = "On", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(true) },
-        {.text = "Off", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(false) },
-    COMPONENT_CONTEXT_MENU_LIST_END,
-}};
-
 static int get_rumble_enabled_current_selection (menu_t *menu) {
     return menu->settings.rumble_enabled ? 0 : 1;
 }
@@ -242,6 +282,8 @@ static component_context_menu_t set_rumble_enabled_type_context_menu = {
 static component_context_menu_t options_context_menu = { .list = {
     { .text = "Show Hidden Files", .submenu = &set_protected_entries_type_context_menu },
     { .text = "Sound Effects", .submenu = &set_soundfx_enabled_type_context_menu },
+    { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
+    { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -254,7 +296,6 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "PAL60 Compatibility", .submenu = &set_pal60_mod_compatibility_type_context_menu },
     { .text = "Hide ROM Extensions", .submenu = &set_show_browser_file_extensions_context_menu },
     { .text = "Hide ROM Tags", .submenu = &set_show_browser_rom_tags_context_menu },
-    { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
     { .text = "Rumble Feedback", .submenu = &set_rumble_enabled_type_context_menu },
     // { .text = "Restore Defaults", .action = set_use_default_settings },
 #endif
@@ -311,6 +352,8 @@ static void draw (menu_t *menu, surface_t *d) {
         "To change the following menu settings, press 'A':\n"
         "     Show Hidden Files : %s\n"
         "     Sound Effects     : %s\n"
+        "     Background Music  : %s\n"
+        "     BG Image Rotation : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -324,7 +367,6 @@ static void draw (menu_t *menu, surface_t *d) {
         "*    PAL60 Mod Compat  : %s\n"
         "     Hide ROM Extension: %s\n"
         "     Hide ROM Tags     : %s\n"
-        "     Background Music  : %s\n"
         "     Rumble Feedback   : %s\n"
         "\n\n"
         "Note: Certain settings have the following caveats:\n"
@@ -334,6 +376,8 @@ static void draw (menu_t *menu, surface_t *d) {
         menu->settings.default_directory,
         format_switch(menu->settings.show_protected_entries),
         format_switch(menu->settings.soundfx_enabled),
+        format_switch(menu->settings.bgm_enabled),
+        format_bg_interval(menu->settings.bg_rotation_interval_secs),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -348,7 +392,6 @@ static void draw (menu_t *menu, surface_t *d) {
         format_switch(menu->settings.pal60_compatibility_mode),
         format_switch(menu->settings.show_browser_file_extensions),
         format_switch(menu->settings.show_browser_rom_tags),
-        format_switch(menu->settings.bgm_enabled),
         format_switch(menu->settings.rumble_enabled)
 #endif
     );

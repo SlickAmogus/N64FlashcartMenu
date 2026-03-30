@@ -184,6 +184,23 @@ void ui_components_background_free(void);
 void ui_components_background_replace_image(surface_t *image);
 
 /**
+ * @brief Initialize the background component for MPEG1 video playback.
+ *
+ * Opens the .m1v file at @p path as a looping animated background.
+ * Must be called after ui_components_background_init().
+ *
+ * @param path Full filesystem path to the .m1v video file.
+ */
+void ui_components_background_init_video(const char *path);
+
+/**
+ * @brief Return whether the background component is in video mode.
+ *
+ * @return true if an MPEG1 video is active, false otherwise.
+ */
+bool ui_components_background_has_video(void);
+
+/**
  * @brief Draw the background component.
  */
 void ui_components_background_draw(void);

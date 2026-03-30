@@ -44,10 +44,24 @@ void sound_init_default(void);
 void sound_init_mp3_playback(void);
 
 /**
+ * @brief Set the directory to search for custom sound effect files.
+ *
+ * When set, sound_init_sfx() will look for .wav64 files in this directory
+ * before falling back to the built-in ROM sounds.  Call this before
+ * sound_init_sfx().
+ *
+ * @param dir Full path to the effects directory on the SD card, or NULL to
+ *            use only the built-in ROM sounds.
+ */
+void sound_set_sfx_dir(const char *dir);
+
+/**
  * @brief Initialize the sound effects system.
- * 
+ *
  * This function initializes the sound effects system, setting up
  * necessary resources and configurations for playing sound effects.
+ * If a custom effects directory has been set via sound_set_sfx_dir(),
+ * files from that directory take precedence over the built-in ROM sounds.
  */
 void sound_init_sfx(void);
 

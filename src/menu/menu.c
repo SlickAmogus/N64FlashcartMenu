@@ -11,6 +11,8 @@
 #include <libdragon.h>
 
 #include "actions.h"
+#include "bg_slideshow.h"
+#include "bgm.h"
 #include "boot/boot.h"
 #include "flashcart/flashcart.h"
 #include "fonts.h"
@@ -74,7 +76,6 @@ static void menu_init (boot_params_t *boot_params) {
 
     actions_init();
     sound_init_default();
-    sound_init_sfx();
 
     hdmi_clear_game_id();
 
@@ -92,6 +93,17 @@ static void menu_init (boot_params_t *boot_params) {
     bookkeeping_load(&menu->bookkeeping);
     menu->load.load_history_id = -1;
     menu->load.load_favorite_id = -1;
+    path_pop(path);
+
+    /* Load SFX — check SD card effects folder first, fall back to ROM */
+    path_push(path, "effects");
+    sound_set_sfx_dir(path_get(path));
+    path_pop(path);
+    sound_init_sfx();
+
+    /* Initialise BGM playlist from SD card music folder */
+    path_push(path, "music");
+    bgm_init(path_get(path));
     path_pop(path);
   
     if (menu->settings.pal60_compatibility_mode) { // hardware VI mods that dont really understand the output
@@ -124,10 +136,18 @@ static void menu_init (boot_params_t *boot_params) {
 
     path_push(path, BACKGROUND_CACHE_FILE);
     ui_components_background_init(path_get(path));
+    path_pop(path);
+    path_pop(path); /* exit cache dir */
+
+    path_push(path, "backgrounds");
+    bg_slideshow_init(path_get(path));
+    bg_slideshow_set_interval(menu->settings.bg_rotation_interval_secs);
+    path_pop(path);
 
     path_free(path);
 
     sound_use_sfx(menu->settings.soundfx_enabled);
+    bgm_set_enabled(menu->settings.bgm_enabled);
 
     menu->browser.directory = path_init(menu->storage_prefix, menu->settings.default_directory);
     if (!directory_exists(path_get(menu->browser.directory))) {
@@ -159,6 +179,8 @@ static void menu_deinit (menu_t *menu) {
 
     display_close();
 
+    bg_slideshow_deinit();
+    bgm_deinit();
     sound_deinit();
 
     rdpq_close();
@@ -259,6 +281,8 @@ void menu_run (boot_params_t *boot_params) {
             time(&menu->current_time);
         }
 
+        bg_slideshow_process();
+        bgm_process();
         sound_poll();
 
         png_decoder_poll();

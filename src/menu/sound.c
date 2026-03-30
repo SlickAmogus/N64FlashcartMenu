@@ -5,9 +5,12 @@
  */
 
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <libdragon.h>
 #include "mp3_player.h"
 #include "sound.h"
+#include "utils/fs.h"
 
 #define DEFAULT_FREQUENCY   (44100)
 #define NUM_BUFFERS         (4)
@@ -17,6 +20,7 @@ static wav64_t sfx_cursor, sfx_error, sfx_enter, sfx_exit, sfx_setting;
 
 static bool sound_initialized = false;
 static bool sfx_enabled = false;
+static char *sfx_dir = NULL;
 
 /**
  * @brief Reconfigure the sound system with the specified frequency.
@@ -59,6 +63,35 @@ void sound_init_mp3_playback (void) {
 }
 
 /**
+ * @brief Set the directory on the SD card to search for custom SFX files.
+ *
+ * @param dir Full path to the effects directory, or NULL to use ROM only.
+ */
+void sound_set_sfx_dir(const char *dir) {
+    if (sfx_dir) {
+        free(sfx_dir);
+    }
+    sfx_dir = dir ? strdup(dir) : NULL;
+}
+
+/**
+ * @brief Open a wav64 file, trying the SD card effects directory first.
+ *
+ * Falls back to the supplied rom_path if the SD card file is not found.
+ */
+static void sfx_open(wav64_t *wav, const char *sd_name, const char *rom_path) {
+    if (sfx_dir) {
+        char sd_path[512];
+        snprintf(sd_path, sizeof(sd_path), "%s/%s", sfx_dir, sd_name);
+        if (file_exists(sd_path)) {
+            wav64_open(wav, sd_path);
+            return;
+        }
+    }
+    wav64_open(wav, rom_path);
+}
+
+/**
  * @brief Initialize the sound effects.
  */
 void sound_init_sfx (void) {
@@ -66,11 +99,11 @@ void sound_init_sfx (void) {
     // global mixer/sample rate was reconfigured to a lower value for MP3.
     mixer_ch_set_limits(SOUND_SFX_CHANNEL, 16, DEFAULT_FREQUENCY, 0);
     mixer_ch_set_vol(SOUND_SFX_CHANNEL, 0.5f, 0.5f);
-    wav64_open(&sfx_cursor, "rom:/cursorsound.wav64");
-    wav64_open(&sfx_exit, "rom:/back.wav64");
-    wav64_open(&sfx_setting, "rom:/settings.wav64");
-    wav64_open(&sfx_enter, "rom:/enter.wav64");
-    wav64_open(&sfx_error, "rom:/error.wav64");
+    sfx_open(&sfx_cursor,  "cursor.wav64",   "rom:/cursorsound.wav64");
+    sfx_open(&sfx_exit,    "back.wav64",     "rom:/back.wav64");
+    sfx_open(&sfx_setting, "settings.wav64", "rom:/settings.wav64");
+    sfx_open(&sfx_enter,   "enter.wav64",    "rom:/enter.wav64");
+    sfx_open(&sfx_error,   "error.wav64",    "rom:/error.wav64");
     sfx_enabled = true;
 }
 
