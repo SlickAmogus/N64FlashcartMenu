@@ -236,6 +236,14 @@ void ui_components_background_init_video(const char *path) {
     int h = mpeg2_get_height(mp2);
     float fps = mpeg2_get_framerate(mp2);
 
+    /* libdragon YUV blitter requires width % 32 == 0 and height % 16 == 0.
+     * If the video doesn't meet this, skip it cleanly instead of crashing. */
+    if ((w % 32) != 0 || (h % 16) != 0) {
+        mpeg2_close(mp2);
+        yuv_close();
+        return;
+    }
+
     yuv_fmv_parms_t parms = {
         .cs     = &YUV_BT601_TV,
         .halign = YUV_ALIGN_CENTER,
