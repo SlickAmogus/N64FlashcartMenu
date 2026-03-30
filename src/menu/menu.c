@@ -140,7 +140,7 @@ static void menu_init (boot_params_t *boot_params) {
     path_pop(path); /* exit cache dir */
 
     path_push(path, "backgrounds");
-    bg_slideshow_init(path_get(path));
+    bg_slideshow_init(path_get(path), menu->settings.use_animated_backgrounds);
     bg_slideshow_set_interval(menu->settings.bg_rotation_interval_secs);
     path_pop(path);
 

@@ -46,7 +46,7 @@ static void bg_png_callback(png_err_t err, surface_t *image, void *data) {
     }
 }
 
-void bg_slideshow_init(const char *backgrounds_dir) {
+void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     bg_count = 0;
 
     if (!backgrounds_dir) {
@@ -71,7 +71,7 @@ void bg_slideshow_init(const char *backgrounds_dir) {
             continue;
         }
 
-        if (!video_found && strcasecmp(dot + 1, "m1v") == 0) {
+        if (allow_video && !video_found && strcasecmp(dot + 1, "m1v") == 0) {
             snprintf(path_buf, sizeof(path_buf), "%s/%s", backgrounds_dir, dir.d_name);
             ui_components_background_init_video(path_buf);
             video_found = true;

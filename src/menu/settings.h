@@ -52,6 +52,9 @@ typedef struct {
     /** @brief Background image rotation interval in seconds (0 = disabled) */
     int bg_rotation_interval_secs;
 
+    /** @brief Use animated (.m1v) background if available; false forces PNG only */
+    bool use_animated_backgrounds;
+
     /** @brief Enable rumble feedback within the menu */
     bool rumble_enabled;
 

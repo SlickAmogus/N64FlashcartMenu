@@ -68,6 +68,12 @@ static void set_bg_rotation_interval_type (menu_t *menu, void *arg) {
     settings_save(&menu->settings);
 }
 
+static void set_use_animated_backgrounds_type (menu_t *menu, void *arg) {
+    menu->settings.use_animated_backgrounds = (bool)(uintptr_t)(arg);
+    settings_save(&menu->settings);
+    /* Re-init slideshow with updated animated flag (takes effect on next menu launch). */
+}
+
 #ifndef FEATURE_AUTOLOAD_ROM_ENABLED
 static void set_use_rom_fast_reboot_enabled_type (menu_t *menu, void *arg) {
     menu->settings.rom_fast_reboot_enabled = (bool)(uintptr_t)(arg);
@@ -155,6 +161,18 @@ static component_context_menu_t set_bgm_enabled_type_context_menu = {
     .list = {
         {.text = "On", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(true) },
         {.text = "Off", .action = set_bgm_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_use_animated_backgrounds_current_selection (menu_t *menu) {
+    return menu->settings.use_animated_backgrounds ? 0 : 1;
+}
+
+static component_context_menu_t set_use_animated_backgrounds_context_menu = {
+    .get_default_selection = get_use_animated_backgrounds_current_selection,
+    .list = {
+        {.text = "On",  .action = set_use_animated_backgrounds_type, .arg = (void *)(uintptr_t)(true) },
+        {.text = "Off", .action = set_use_animated_backgrounds_type, .arg = (void *)(uintptr_t)(false) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
@@ -283,6 +301,7 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "Show Hidden Files", .submenu = &set_protected_entries_type_context_menu },
     { .text = "Sound Effects", .submenu = &set_soundfx_enabled_type_context_menu },
     { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
+    { .text = "Animated Background", .submenu = &set_use_animated_backgrounds_context_menu },
     { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
@@ -353,6 +372,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     Show Hidden Files : %s\n"
         "     Sound Effects     : %s\n"
         "     Background Music  : %s\n"
+        "     Animated BG       : %s\n"
         "     BG Image Rotation : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
@@ -377,6 +397,7 @@ static void draw (menu_t *menu, surface_t *d) {
         format_switch(menu->settings.show_protected_entries),
         format_switch(menu->settings.soundfx_enabled),
         format_switch(menu->settings.bgm_enabled),
+        format_switch(menu->settings.use_animated_backgrounds),
         format_bg_interval(menu->settings.bg_rotation_interval_secs),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),

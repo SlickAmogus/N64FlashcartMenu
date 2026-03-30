@@ -33,6 +33,7 @@ static settings_t init = {
     .bgm_enabled = true,
     .rumble_enabled = false,
     .bg_rotation_interval_secs = 60,
+    .use_animated_backgrounds = true,
 };
 
 
@@ -62,6 +63,7 @@ void settings_load (settings_t *settings) {
     settings->soundfx_enabled = mini_get_bool(ini, "menu", "soundfx_enabled", init.soundfx_enabled);
     settings->bgm_enabled = mini_get_bool(ini, "menu", "bgm_enabled", init.bgm_enabled);
     settings->bg_rotation_interval_secs = mini_get_int(ini, "menu", "bg_rotation_interval_secs", init.bg_rotation_interval_secs);
+    settings->use_animated_backgrounds = mini_get_bool(ini, "menu", "use_animated_backgrounds", init.use_animated_backgrounds);
 
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
     settings->rom_autoload_enabled = mini_get_bool(ini, "menu", "autoload_rom_enabled", init.rom_autoload_enabled);
@@ -94,6 +96,7 @@ void settings_save (settings_t *settings) {
     mini_set_bool(ini, "menu", "soundfx_enabled", settings->soundfx_enabled);
     mini_set_bool(ini, "menu", "bgm_enabled", settings->bgm_enabled);
     mini_set_int(ini, "menu", "bg_rotation_interval_secs", settings->bg_rotation_interval_secs);
+    mini_set_bool(ini, "menu", "use_animated_backgrounds", settings->use_animated_backgrounds);
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
     mini_set_bool(ini, "menu", "autoload_rom_enabled", settings->rom_autoload_enabled);
     mini_set_string(ini, "autoload", "rom_path", settings->rom_autoload_path);

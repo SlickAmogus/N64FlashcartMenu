@@ -19,8 +19,10 @@
  * Safe to call when the directory does not exist or is empty.
  *
  * @param backgrounds_dir Full path to the backgrounds directory.
+ * @param allow_video     If true, a .m1v file takes priority over PNGs.
+ *                        If false, .m1v files are ignored and only PNGs are used.
  */
-void bg_slideshow_init(const char *backgrounds_dir);
+void bg_slideshow_init(const char *backgrounds_dir, bool allow_video);
 
 /**
  * @brief Stop the slideshow and release all resources.
