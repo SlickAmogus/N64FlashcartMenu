@@ -30,6 +30,17 @@ void bg_slideshow_init(const char *backgrounds_dir, bool allow_video);
 void bg_slideshow_deinit(void);
 
 /**
+ * @brief Re-initialize the slideshow in place with a new animated flag.
+ *
+ * Releases any active video, frees the current PNG list, then re-scans
+ * the same directory used in the last bg_slideshow_init() call.
+ * Safe to call at any time after bg_slideshow_init().
+ *
+ * @param allow_video  If true, use .m1v video if found; otherwise PNG only.
+ */
+void bg_slideshow_reinit(bool allow_video);
+
+/**
  * @brief Set how often the background PNG rotates.
  *
  * @param seconds Rotation interval in seconds.  0 disables rotation.

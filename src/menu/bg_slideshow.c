@@ -25,6 +25,8 @@ static uint32_t bg_last_change_ms = 0;
 static bool bg_change_pending = false;
 static bool bg_decoding = false;
 
+static char *bg_dir_saved = NULL;
+
 static void bg_shuffle(void) {
     for (int i = bg_count - 1; i > 0; i--) {
         int j = rand() % (i + 1);
@@ -52,6 +54,11 @@ void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     if (!backgrounds_dir) {
         return;
     }
+
+    if (bg_dir_saved) {
+        free(bg_dir_saved);
+    }
+    bg_dir_saved = strdup(backgrounds_dir);
 
     dir_t dir;
     char path_buf[512];
@@ -119,6 +126,18 @@ void bg_slideshow_deinit(void) {
     bg_count = 0;
     bg_decoding = false;
     bg_change_pending = false;
+}
+
+void bg_slideshow_reinit(bool allow_video) {
+    if (!bg_dir_saved) {
+        return;
+    }
+    /* Release any active video so background_draw() stops using it. */
+    if (ui_components_background_has_video()) {
+        ui_components_background_free_video();
+    }
+    bg_slideshow_deinit();
+    bg_slideshow_init(bg_dir_saved, allow_video);
 }
 
 void bg_slideshow_set_interval(int seconds) {

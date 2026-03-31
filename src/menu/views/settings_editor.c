@@ -71,7 +71,8 @@ static void set_bg_rotation_interval_type (menu_t *menu, void *arg) {
 static void set_use_animated_backgrounds_type (menu_t *menu, void *arg) {
     menu->settings.use_animated_backgrounds = (bool)(uintptr_t)(arg);
     settings_save(&menu->settings);
-    /* Re-init slideshow with updated animated flag (takes effect on next menu launch). */
+    bg_slideshow_reinit(menu->settings.use_animated_backgrounds);
+    bg_slideshow_set_interval(menu->settings.bg_rotation_interval_secs);
 }
 
 #ifndef FEATURE_AUTOLOAD_ROM_ENABLED

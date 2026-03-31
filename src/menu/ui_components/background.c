@@ -274,6 +274,24 @@ bool ui_components_background_has_video(void) {
 }
 
 /**
+ * @brief Stop and release MPEG1 video resources without freeing the
+ *        background component itself.  Safe to call when not in video mode.
+ *
+ * After this call the background falls back to the static PNG path
+ * (or clears to BACKGROUND_EMPTY_COLOR if no image is loaded).
+ */
+void ui_components_background_free_video(void) {
+    if (!background || !background->video) {
+        return;
+    }
+    yuv_blitter_free(&background->video_blitter);
+    mpeg2_close(background->video);
+    background->video = NULL;
+    background->video_has_frame = false;
+    yuv_close();
+}
+
+/**
  * @brief Free the background component and its resources.
  */
 void ui_components_background_free(void) {

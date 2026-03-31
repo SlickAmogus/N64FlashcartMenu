@@ -201,6 +201,12 @@ void ui_components_background_init_video(const char *path);
 bool ui_components_background_has_video(void);
 
 /**
+ * @brief Release MPEG1 video resources without destroying the background
+ *        component.  No-op if not currently in video mode.
+ */
+void ui_components_background_free_video(void);
+
+/**
  * @brief Draw the background component.
  */
 void ui_components_background_draw(void);
