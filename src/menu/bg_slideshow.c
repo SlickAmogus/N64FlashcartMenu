@@ -24,6 +24,7 @@ static int bg_interval_secs = 0;
 static uint32_t bg_last_change_ms = 0;
 static bool bg_change_pending = false;
 static bool bg_decoding = false;
+static bool bg_initial_pending = false;
 
 static char *bg_dir_saved = NULL;
 
@@ -109,10 +110,13 @@ void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     }
 
     if (bg_count > 0) {
-        /* Load the first background immediately */
+        /* Load the first background immediately; if the decoder is busy at
+         * init time, mark it pending so bg_slideshow_process() retries. */
         if (png_decoder_start(bg_files[bg_order[0]], DISPLAY_WIDTH, DISPLAY_HEIGHT,
                               bg_png_callback, NULL) == PNG_OK) {
             bg_decoding = true;
+        } else {
+            bg_initial_pending = true;
         }
         bg_last_change_ms = get_ticks_ms();
     }
@@ -126,6 +130,7 @@ void bg_slideshow_deinit(void) {
     bg_count = 0;
     bg_decoding = false;
     bg_change_pending = false;
+    bg_initial_pending = false;
 }
 
 void bg_slideshow_reinit(bool allow_video) {
@@ -147,10 +152,22 @@ void bg_slideshow_set_interval(int seconds) {
 }
 
 void bg_slideshow_process(void) {
-    if (bg_interval_secs == 0 || bg_count <= 1) {
+    if (bg_decoding) {
         return;
     }
-    if (bg_decoding) {
+
+    /* Retry the initial load if it was deferred because the decoder was busy
+     * at init time.  This runs regardless of bg_count so a single PNG works. */
+    if (bg_initial_pending && bg_count > 0) {
+        if (png_decoder_start(bg_files[bg_order[0]], DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                              bg_png_callback, NULL) == PNG_OK) {
+            bg_initial_pending = false;
+            bg_decoding = true;
+        }
+        return;
+    }
+
+    if (bg_interval_secs == 0 || bg_count <= 1) {
         return;
     }
 
