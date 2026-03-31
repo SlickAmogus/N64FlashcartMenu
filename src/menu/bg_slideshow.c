@@ -13,7 +13,9 @@
 #include "ui_components.h"
 #include "ui_components/constants.h"
 
-#define MAX_BG_FILES    20
+#define MAX_BG_FILES        20
+#define MAX_PNG_WIDTH       1280
+#define MAX_PNG_HEIGHT      1024
 
 static char *bg_files[MAX_BG_FILES];
 static int bg_order[MAX_BG_FILES];
@@ -112,10 +114,11 @@ void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     if (bg_count > 0) {
         /* Load the first background immediately; if the decoder is busy at
          * init time, mark it pending so bg_slideshow_process() retries. */
-        if (png_decoder_start(bg_files[bg_order[0]], DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                              bg_png_callback, NULL) == PNG_OK) {
+        png_err_t start_err = png_decoder_start(bg_files[bg_order[0]], MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
+                                                 bg_png_callback, NULL);
+        if (start_err == PNG_OK) {
             bg_decoding = true;
-        } else {
+        } else if (start_err == PNG_ERR_BUSY) {
             bg_initial_pending = true;
         }
         bg_last_change_ms = get_ticks_ms();
@@ -137,12 +140,17 @@ void bg_slideshow_reinit(bool allow_video) {
     if (!bg_dir_saved) {
         return;
     }
+    /* Copy the saved path before deinit+init, because bg_slideshow_init()
+     * frees bg_dir_saved internally and bg_dir_saved IS the pointer we pass
+     * in, so passing it directly would be a use-after-free. */
+    char *dir_copy = strdup(bg_dir_saved);
     /* Release any active video so background_draw() stops using it. */
     if (ui_components_background_has_video()) {
         ui_components_background_free_video();
     }
     bg_slideshow_deinit();
-    bg_slideshow_init(bg_dir_saved, allow_video);
+    bg_slideshow_init(dir_copy, allow_video);
+    free(dir_copy);
 }
 
 void bg_slideshow_set_interval(int seconds) {
@@ -159,10 +167,13 @@ void bg_slideshow_process(void) {
     /* Retry the initial load if it was deferred because the decoder was busy
      * at init time.  This runs regardless of bg_count so a single PNG works. */
     if (bg_initial_pending && bg_count > 0) {
-        if (png_decoder_start(bg_files[bg_order[0]], DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                              bg_png_callback, NULL) == PNG_OK) {
+        png_err_t err = png_decoder_start(bg_files[bg_order[0]], MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
+                                          bg_png_callback, NULL);
+        if (err == PNG_OK) {
             bg_initial_pending = false;
             bg_decoding = true;
+        } else if (err != PNG_ERR_BUSY) {
+            bg_initial_pending = false;  /* permanent failure, stop retrying */
         }
         return;
     }
@@ -186,7 +197,7 @@ void bg_slideshow_process(void) {
 
         png_err_t err = png_decoder_start(
             bg_files[bg_order[bg_current]],
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
             bg_png_callback, NULL);
 
         if (err == PNG_OK) {

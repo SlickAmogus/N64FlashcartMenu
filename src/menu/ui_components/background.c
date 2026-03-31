@@ -140,45 +140,66 @@ static void prepare_background(component_background_t *c) {
     rdpq_mode_pop();
     rdpq_detach();
 
-    uint16_t image_center_x = (c->image->width / 2);
-    uint16_t image_center_y = (c->image->height / 2);
+    bool oversized = (c->image->width > DISPLAY_WIDTH) || (c->image->height > DISPLAY_HEIGHT);
 
     // Prepare display list
     rspq_block_begin();
     rdpq_mode_push();
-        if ((c->image->width != DISPLAY_WIDTH) || (c->image->height != DISPLAY_HEIGHT)) {
-            rdpq_set_mode_fill(BACKGROUND_EMPTY_COLOR);
+        if (oversized) {
+            /* Image larger than display: center-crop to fill the screen.
+             * s0/t0 select the center of the source, width/height clip it to
+             * the display dimensions.  Any axis that is smaller than the
+             * display is centered with fill bars instead of cropped. */
+            int s0 = (c->image->width  > DISPLAY_WIDTH)  ? (c->image->width  - DISPLAY_WIDTH)  / 2 : 0;
+            int t0 = (c->image->height > DISPLAY_HEIGHT) ? (c->image->height - DISPLAY_HEIGHT) / 2 : 0;
+            int blit_w = (c->image->width  < DISPLAY_WIDTH)  ? c->image->width  : DISPLAY_WIDTH;
+            int blit_h = (c->image->height < DISPLAY_HEIGHT) ? c->image->height : DISPLAY_HEIGHT;
+            int blit_x = (DISPLAY_WIDTH  - blit_w) / 2;
+            int blit_y = (DISPLAY_HEIGHT - blit_h) / 2;
+            if (blit_w < DISPLAY_WIDTH || blit_h < DISPLAY_HEIGHT) {
+                rdpq_set_mode_fill(BACKGROUND_EMPTY_COLOR);
+                rdpq_fill_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+            }
+            rdpq_set_mode_copy(false);
+            rdpq_tex_blit(c->image, blit_x, blit_y,
+                &(rdpq_blitparms_t){ .s0 = s0, .t0 = t0, .width = blit_w, .height = blit_h });
+        } else {
+            uint16_t image_center_x = (c->image->width / 2);
+            uint16_t image_center_y = (c->image->height / 2);
+            if ((c->image->width != DISPLAY_WIDTH) || (c->image->height != DISPLAY_HEIGHT)) {
+                rdpq_set_mode_fill(BACKGROUND_EMPTY_COLOR);
+            }
+            if (c->image->width != DISPLAY_WIDTH) {
+                rdpq_fill_rectangle(
+                    0,
+                    DISPLAY_CENTER_Y - image_center_y,
+                    DISPLAY_CENTER_X - image_center_x,
+                    DISPLAY_CENTER_Y + image_center_y
+                );
+                rdpq_fill_rectangle(
+                    DISPLAY_CENTER_X + image_center_x - (c->image->width % 2),
+                    DISPLAY_CENTER_Y - image_center_y,
+                    DISPLAY_WIDTH,
+                    DISPLAY_CENTER_Y + image_center_y
+                );
+            }
+            if (c->image->height != DISPLAY_HEIGHT) {
+                rdpq_fill_rectangle(
+                    0,
+                    0,
+                    DISPLAY_WIDTH,
+                    DISPLAY_CENTER_Y - image_center_y
+                );
+                rdpq_fill_rectangle(
+                    0,
+                    DISPLAY_CENTER_Y + image_center_y - (c->image->height % 2),
+                    DISPLAY_WIDTH,
+                    DISPLAY_HEIGHT
+                );
+            }
+            rdpq_set_mode_copy(false);
+            rdpq_tex_blit(c->image, DISPLAY_CENTER_X - image_center_x, DISPLAY_CENTER_Y - image_center_y, NULL);
         }
-        if (c->image->width != DISPLAY_WIDTH) {
-            rdpq_fill_rectangle(
-                0,
-                DISPLAY_CENTER_Y - image_center_y,
-                DISPLAY_CENTER_X - image_center_x,
-                DISPLAY_CENTER_Y + image_center_y
-            );
-            rdpq_fill_rectangle(
-                DISPLAY_CENTER_X + image_center_x - (c->image->width % 2),
-                DISPLAY_CENTER_Y - image_center_y,
-                DISPLAY_WIDTH,
-                DISPLAY_CENTER_Y + image_center_y
-            );
-        }
-        if (c->image->height != DISPLAY_HEIGHT) {
-            rdpq_fill_rectangle(
-                0,
-                0,
-                DISPLAY_WIDTH,
-                DISPLAY_CENTER_Y - image_center_y
-            );
-            rdpq_fill_rectangle(
-                0,
-                DISPLAY_CENTER_Y + image_center_y - (c->image->height % 2),
-                DISPLAY_WIDTH,
-                DISPLAY_HEIGHT
-            );
-        }
-        rdpq_set_mode_copy(false);
-        rdpq_tex_blit(c->image, DISPLAY_CENTER_X - image_center_x, DISPLAY_CENTER_Y - image_center_y, NULL);
     rdpq_mode_pop();
     c->image_display_list = rspq_block_end();
 }
