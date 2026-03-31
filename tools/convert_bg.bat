@@ -70,7 +70,7 @@ for %%F in ("%INPUT_DIR%\*.png") do (
     set "FNAME=%%~nxF"
     set "FBASE=%%~nF"
     echo Converting: !FNAME!
-    "%FFMPEG%" -y -i "%%F" -vf "!VF!" -pix_fmt rgb24 -compression_level 6 "%OUT_DIR%\!FBASE!.png" -loglevel warning
+    "%FFMPEG%" -y -i "%%F" -vf "!VF!" -pix_fmt rgb24 -compression_level 6 -update 1 "%OUT_DIR%\!FBASE!.png" -loglevel warning
     if errorlevel 1 (
         echo   FAILED: !FNAME!
         set /a SKIP+=1
