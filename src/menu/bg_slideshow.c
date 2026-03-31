@@ -13,7 +13,7 @@
 #include "ui_components.h"
 #include "ui_components/constants.h"
 
-#define MAX_BG_FILES        20
+#define MAX_BG_FILES        400
 #define MAX_PNG_WIDTH       1280
 #define MAX_PNG_HEIGHT      1024
 
