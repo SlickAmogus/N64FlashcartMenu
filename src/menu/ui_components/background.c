@@ -15,14 +15,21 @@
 #include "utils/fs.h"
 
 #define CACHE_METADATA_MAGIC    (0x424B4731)
+#define CROSSFADE_DURATION_MS   (800)
 
 /**
  * @brief Structure representing the background component.
  */
 typedef struct {
     char *cache_location;      /**< Path to the cache file location. */
-    surface_t *image;          /**< Pointer to the loaded image surface. */
-    rspq_block_t *image_display_list; /**< Display list for rendering the image. */
+    surface_t *image;          /**< Current background image surface. */
+    rspq_block_t *image_display_list; /**< Display list for rendering the current image. */
+    /* Crossfade — only populated when an Expansion Pak is detected.  Holds the
+     * outgoing image and its display list while the new image fades in. */
+    surface_t *prev_image;
+    rspq_block_t *prev_display_list;
+    uint32_t fade_start_ms;
+    bool fading;
     mpeg2_t *video;            /**< MPEG1 video handle (NULL if not in video mode). */
     yuv_blitter_t video_blitter; /**< YUV blitter for video frame rendering. */
     bool video_has_frame;      /**< True after the first frame has been decoded. */
@@ -214,6 +221,42 @@ static void display_list_free(void *arg) {
 }
 
 /**
+ * @brief Draw an image at full screen with the given alpha (0..255).
+ *
+ * Used during crossfade to draw the incoming image on top of the previous one.
+ * Mirrors prepare_background()'s blit logic but in standard mode with a
+ * per-frame alpha so the display list pre-bake is bypassed.
+ */
+static void draw_image_alpha(const surface_t *img, uint8_t alpha) {
+    if (!img || img->width == 0 || img->height == 0) {
+        return;
+    }
+
+    rdpq_mode_push();
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER_TEX_FLAT);
+        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+        rdpq_set_prim_color(RGBA32(0xFF, 0xFF, 0xFF, alpha));
+
+        bool oversized = (img->width > DISPLAY_WIDTH) || (img->height > DISPLAY_HEIGHT);
+        if (oversized) {
+            int s0 = (img->width  > DISPLAY_WIDTH)  ? (img->width  - DISPLAY_WIDTH)  / 2 : 0;
+            int t0 = (img->height > DISPLAY_HEIGHT) ? (img->height - DISPLAY_HEIGHT) / 2 : 0;
+            int blit_w = (img->width  < DISPLAY_WIDTH)  ? img->width  : DISPLAY_WIDTH;
+            int blit_h = (img->height < DISPLAY_HEIGHT) ? img->height : DISPLAY_HEIGHT;
+            int blit_x = (DISPLAY_WIDTH  - blit_w) / 2;
+            int blit_y = (DISPLAY_HEIGHT - blit_h) / 2;
+            rdpq_tex_blit((surface_t *)img, blit_x, blit_y,
+                &(rdpq_blitparms_t){ .s0 = s0, .t0 = t0, .width = blit_w, .height = blit_h });
+        } else {
+            uint16_t cx = img->width  / 2;
+            uint16_t cy = img->height / 2;
+            rdpq_tex_blit((surface_t *)img, DISPLAY_CENTER_X - cx, DISPLAY_CENTER_Y - cy, NULL);
+        }
+    rdpq_mode_pop();
+}
+
+/**
  * @brief Initialize the background component and load from cache.
  *
  * @param cache_location Path to the cache file location.
@@ -332,6 +375,15 @@ void ui_components_background_free(void) {
             rdpq_call_deferred(display_list_free, background->image_display_list);
             background->image_display_list = NULL;
         }
+        if (background->prev_image) {
+            surface_free(background->prev_image);
+            free(background->prev_image);
+            background->prev_image = NULL;
+        }
+        if (background->prev_display_list) {
+            rdpq_call_deferred(display_list_free, background->prev_display_list);
+            background->prev_display_list = NULL;
+        }
         if (background->cache_location) {
             free(background->cache_location);
         }
@@ -343,6 +395,10 @@ void ui_components_background_free(void) {
 /**
  * @brief Replace the background image and update cache/display list.
  *
+ * With an Expansion Pak present and a previous image already loaded, the
+ * outgoing image is retained to crossfade into the new one.  Otherwise the
+ * old image is freed immediately (hard cut, original behaviour).
+ *
  * @param image Pointer to the new background image surface.
  */
 void ui_components_background_replace_image(surface_t *image) {
@@ -350,20 +406,42 @@ void ui_components_background_replace_image(surface_t *image) {
         return;
     }
 
-    if (background->image) {
-        surface_free(background->image);
-        free(background->image);
-        background->image = NULL;
-    }
+    bool crossfade = is_memory_expanded() && background->image != NULL;
 
-    if (background->image_display_list) {
-        rdpq_call_deferred(display_list_free, background->image_display_list);
+    if (crossfade) {
+        /* If a fade was already in progress, snap the previous one to done
+         * before starting a new fade — we only ever hold one outgoing image. */
+        if (background->prev_image) {
+            surface_free(background->prev_image);
+            free(background->prev_image);
+            background->prev_image = NULL;
+        }
+        if (background->prev_display_list) {
+            rdpq_call_deferred(display_list_free, background->prev_display_list);
+            background->prev_display_list = NULL;
+        }
+        background->prev_image = background->image;
+        background->prev_display_list = background->image_display_list;
+        background->image = image;
         background->image_display_list = NULL;
+        save_to_cache(background);
+        prepare_background(background);
+        background->fading = true;
+        background->fade_start_ms = get_ticks_ms();
+    } else {
+        if (background->image) {
+            surface_free(background->image);
+            free(background->image);
+            background->image = NULL;
+        }
+        if (background->image_display_list) {
+            rdpq_call_deferred(display_list_free, background->image_display_list);
+            background->image_display_list = NULL;
+        }
+        background->image = image;
+        save_to_cache(background);
+        prepare_background(background);
     }
-
-    background->image = image;
-    save_to_cache(background);
-    prepare_background(background);
 }
 
 /**
@@ -403,6 +481,23 @@ void ui_components_background_draw(void) {
                 background->video_has_frame = true;
             }
             background->video_last_frame_ms = now_ms;
+        }
+    } else if (background && background->fading
+               && background->prev_display_list
+               && background->image_display_list) {
+        uint32_t elapsed = get_ticks_ms() - background->fade_start_ms;
+        if (elapsed >= CROSSFADE_DURATION_MS) {
+            surface_free(background->prev_image);
+            free(background->prev_image);
+            background->prev_image = NULL;
+            rdpq_call_deferred(display_list_free, background->prev_display_list);
+            background->prev_display_list = NULL;
+            background->fading = false;
+            rspq_block_run(background->image_display_list);
+        } else {
+            uint8_t alpha = (uint8_t)((elapsed * 255) / CROSSFADE_DURATION_MS);
+            rspq_block_run(background->prev_display_list);
+            draw_image_alpha(background->image, alpha);
         }
     } else if (background && background->image_display_list) {
         rspq_block_run(background->image_display_list);
