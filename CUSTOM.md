@@ -82,6 +82,19 @@ Place the `.m1v` file in `/menu/backgrounds/` on the SD card. It loops continuou
 
 ---
 
+## Expansion Pak (recommended)
+
+The slideshow caps PNG decode dimensions based on detected RDRAM:
+
+| Console RAM | Max PNG size |
+|---|---|
+| 4 MB (base N64) | 640×480 |
+| 8 MB (Expansion Pak) | 1280×1024 |
+
+PNGs larger than the cap will fail to decode. Without an Expansion Pak, keep your background PNGs at 640×480 (use `tools\convert_bg.bat` to bulk-convert). The cap is also logged at boot via `debugf` if you have UNFLoader connected.
+
+---
+
 ## Settings (in-menu)
 
 | Setting | Default | Description |

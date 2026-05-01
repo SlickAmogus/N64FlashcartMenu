@@ -14,13 +14,21 @@
 #include "ui_components/constants.h"
 
 #define MAX_BG_FILES        400
-#define MAX_PNG_WIDTH       1280
-#define MAX_PNG_HEIGHT      1024
+
+/* PNG decode dimension caps. Picked at init based on RDRAM size:
+ * a 1280x1024 RGBA decode buffer is ~5 MB and OOMs a base 4 MB N64,
+ * so we drop to 640x480 (framebuffer-matched) without an Expansion Pak. */
+#define MAX_PNG_WIDTH_BASE      640
+#define MAX_PNG_HEIGHT_BASE     480
+#define MAX_PNG_WIDTH_EXPANDED  1280
+#define MAX_PNG_HEIGHT_EXPANDED 1024
 
 static char *bg_files[MAX_BG_FILES];
 static int bg_order[MAX_BG_FILES];
 static int bg_count = 0;
 static int bg_current = 0;
+static int bg_png_max_w = MAX_PNG_WIDTH_BASE;
+static int bg_png_max_h = MAX_PNG_HEIGHT_BASE;
 
 static int bg_interval_secs = 0;
 static uint32_t bg_last_change_ms = 0;
@@ -53,6 +61,17 @@ static void bg_png_callback(png_err_t err, surface_t *image, void *data) {
 
 void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     bg_count = 0;
+
+    if (is_memory_expanded()) {
+        bg_png_max_w = MAX_PNG_WIDTH_EXPANDED;
+        bg_png_max_h = MAX_PNG_HEIGHT_EXPANDED;
+    } else {
+        bg_png_max_w = MAX_PNG_WIDTH_BASE;
+        bg_png_max_h = MAX_PNG_HEIGHT_BASE;
+    }
+    debugf("bg_slideshow: PNG cap %dx%d (%s RAM)\n",
+           bg_png_max_w, bg_png_max_h,
+           is_memory_expanded() ? "8MB" : "4MB");
 
     if (!backgrounds_dir) {
         return;
@@ -114,7 +133,7 @@ void bg_slideshow_init(const char *backgrounds_dir, bool allow_video) {
     if (bg_count > 0) {
         /* Load the first background immediately; if the decoder is busy at
          * init time, mark it pending so bg_slideshow_process() retries. */
-        png_err_t start_err = png_decoder_start(bg_files[bg_order[0]], MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
+        png_err_t start_err = png_decoder_start(bg_files[bg_order[0]], bg_png_max_w, bg_png_max_h,
                                                  bg_png_callback, NULL);
         if (start_err == PNG_OK) {
             bg_decoding = true;
@@ -167,7 +186,7 @@ void bg_slideshow_process(void) {
     /* Retry the initial load if it was deferred because the decoder was busy
      * at init time.  This runs regardless of bg_count so a single PNG works. */
     if (bg_initial_pending && bg_count > 0) {
-        png_err_t err = png_decoder_start(bg_files[bg_order[0]], MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
+        png_err_t err = png_decoder_start(bg_files[bg_order[0]], bg_png_max_w, bg_png_max_h,
                                           bg_png_callback, NULL);
         if (err == PNG_OK) {
             bg_initial_pending = false;
@@ -197,7 +216,7 @@ void bg_slideshow_process(void) {
 
         png_err_t err = png_decoder_start(
             bg_files[bg_order[bg_current]],
-            MAX_PNG_WIDTH, MAX_PNG_HEIGHT,
+            bg_png_max_w, bg_png_max_h,
             bg_png_callback, NULL);
 
         if (err == PNG_OK) {
