@@ -24,6 +24,16 @@ static const char *format_bg_interval (int secs) {
     }
 }
 
+static const char *format_screensaver_timeout (int secs) {
+    switch (secs) {
+        case 60:   return "1 min";
+        case 300:  return "5 min";
+        case 600:  return "10 min";
+        case 1800: return "30 min";
+        default:   return "Off";
+    }
+}
+
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
 static void set_loading_progress_bar_enabled_type (menu_t *menu, void *arg) {
     menu->settings.loading_progress_bar_enabled = (bool)(uintptr_t)(arg);
@@ -73,6 +83,16 @@ static void set_use_animated_backgrounds_type (menu_t *menu, void *arg) {
     settings_save(&menu->settings);
     bg_slideshow_reinit(menu->settings.use_animated_backgrounds);
     bg_slideshow_set_interval(menu->settings.bg_rotation_interval_secs);
+}
+
+static void set_screensaver_enabled_type (menu_t *menu, void *arg) {
+    menu->settings.screensaver_enabled = (bool)(uintptr_t)(arg);
+    settings_save(&menu->settings);
+}
+
+static void set_screensaver_timeout_type (menu_t *menu, void *arg) {
+    menu->settings.screensaver_timeout_secs = (int)(uintptr_t)(arg);
+    settings_save(&menu->settings);
 }
 
 #ifndef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -174,6 +194,39 @@ static component_context_menu_t set_use_animated_backgrounds_context_menu = {
     .list = {
         {.text = "On",  .action = set_use_animated_backgrounds_type, .arg = (void *)(uintptr_t)(true) },
         {.text = "Off", .action = set_use_animated_backgrounds_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_screensaver_enabled_current_selection (menu_t *menu) {
+    return menu->settings.screensaver_enabled ? 0 : 1;
+}
+
+static component_context_menu_t set_screensaver_enabled_context_menu = {
+    .get_default_selection = get_screensaver_enabled_current_selection,
+    .list = {
+        {.text = "On",  .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(true) },
+        {.text = "Off", .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_screensaver_timeout_current_selection (menu_t *menu) {
+    switch (menu->settings.screensaver_timeout_secs) {
+        case 60:   return 0;
+        case 300:  return 1;
+        case 600:  return 2;
+        case 1800: return 3;
+        default:   return 4;
+    }
+}
+
+static component_context_menu_t set_screensaver_timeout_context_menu = {
+    .get_default_selection = get_screensaver_timeout_current_selection,
+    .list = {
+        {.text = "1 min",  .action = set_screensaver_timeout_type, .arg = (void *)(uintptr_t)(60) },
+        {.text = "5 min",  .action = set_screensaver_timeout_type, .arg = (void *)(uintptr_t)(300) },
+        {.text = "10 min", .action = set_screensaver_timeout_type, .arg = (void *)(uintptr_t)(600) },
+        {.text = "30 min", .action = set_screensaver_timeout_type, .arg = (void *)(uintptr_t)(1800) },
+        {.text = "Off",    .action = set_screensaver_timeout_type, .arg = (void *)(uintptr_t)(0) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
@@ -304,6 +357,8 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
     { .text = "Animated Background", .submenu = &set_use_animated_backgrounds_context_menu },
     { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
+    { .text = "Screensaver", .submenu = &set_screensaver_enabled_context_menu },
+    { .text = "Screensaver Timeout", .submenu = &set_screensaver_timeout_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -375,6 +430,8 @@ static void draw (menu_t *menu, surface_t *d) {
         "     Background Music  : %s\n"
         "     Animated BG       : %s\n"
         "     BG Image Rotation : %s\n"
+        "     Screensaver       : %s\n"
+        "     Screensaver Time  : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -400,6 +457,8 @@ static void draw (menu_t *menu, surface_t *d) {
         format_switch(menu->settings.bgm_enabled),
         format_switch(menu->settings.use_animated_backgrounds),
         format_bg_interval(menu->settings.bg_rotation_interval_secs),
+        format_switch(menu->settings.screensaver_enabled),
+        format_screensaver_timeout(menu->settings.screensaver_timeout_secs),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED

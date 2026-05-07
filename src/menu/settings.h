@@ -55,6 +55,12 @@ typedef struct {
     /** @brief Use animated (.m1v) background if available; false forces PNG only */
     bool use_animated_backgrounds;
 
+    /** @brief Enable idle screensaver (DVD-style bouncing label on black) */
+    bool screensaver_enabled;
+
+    /** @brief Idle seconds before screensaver activates (0 = never) */
+    int screensaver_timeout_secs;
+
     /** @brief Enable rumble feedback within the menu */
     bool rumble_enabled;
 

@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include <libdragon.h>
@@ -21,6 +22,7 @@
 #include "menu.h"
 #include "mp3_player.h"
 #include "png_decoder.h"
+#include "screensaver.h"
 #include "settings.h"
 #include "sound.h"
 #include "usb_comm.h"
@@ -149,6 +151,8 @@ static void menu_init (boot_params_t *boot_params) {
     sound_use_sfx(menu->settings.soundfx_enabled);
     bgm_set_enabled(menu->settings.bgm_enabled);
 
+    screensaver_init();
+
     menu->browser.directory = path_init(menu->storage_prefix, menu->settings.default_directory);
     if (!directory_exists(path_get(menu->browser.directory))) {
         path_free(menu->browser.directory);
@@ -182,6 +186,7 @@ static void menu_deinit (menu_t *menu) {
     bg_slideshow_deinit();
     bgm_deinit();
     sound_deinit();
+    screensaver_deinit();
 
     rdpq_close();
     rspq_close();
@@ -250,19 +255,60 @@ static view_t *menu_get_view (menu_mode_t id) {
 void menu_run (boot_params_t *boot_params) {
     menu_init(boot_params);
 
+    /* Idle tracking for the screensaver.  Reset to "now" on any joypad
+     * input; once it exceeds the timeout we draw the screensaver in place
+     * of the current view (browser only — interactive views like the music
+     * player keep running so audio doesn't cut out). */
+    uint32_t last_input_ms = get_ticks_ms();
+    bool screensaver_was_active = false;
+
     while (true) {
         surface_t *display = display_try_get();
 
         if (display != NULL) {
             actions_update(menu);
 
-            view_t *view = menu_get_view(menu->mode);
-            if (view && view->show) {
-                view->show(menu, display);
+            bool any_input =
+                menu->actions.go_up   || menu->actions.go_down   ||
+                menu->actions.go_left || menu->actions.go_right  ||
+                menu->actions.go_fast || menu->actions.enter     ||
+                menu->actions.back    || menu->actions.options   ||
+                menu->actions.settings|| menu->actions.lz_context;
+
+            if (any_input) {
+                last_input_ms = get_ticks_ms();
+            }
+
+            bool screensaver_eligible = (menu->mode == MENU_MODE_BROWSER);
+            bool should_be_active =
+                screensaver_eligible
+                && menu->settings.screensaver_enabled
+                && menu->settings.screensaver_timeout_secs > 0
+                && (get_ticks_ms() - last_input_ms)
+                       >= (uint32_t)menu->settings.screensaver_timeout_secs * 1000U;
+
+            if (screensaver_was_active && !should_be_active && any_input) {
+                /* Wake-up frame: suppress the input that woke us so it
+                 * doesn't double as a menu action (e.g. A launches a ROM). */
+                memset(&menu->actions, 0, sizeof(menu->actions));
+            }
+
+            if (should_be_active != screensaver_was_active) {
+                screensaver_set_active(should_be_active);
+            }
+            screensaver_was_active = should_be_active;
+
+            if (should_be_active) {
+                screensaver_draw(display);
             } else {
-                rdpq_attach_clear(display, NULL);
-                rdpq_detach_wait();
-                display_show(display);
+                view_t *view = menu_get_view(menu->mode);
+                if (view && view->show) {
+                    view->show(menu, display);
+                } else {
+                    rdpq_attach_clear(display, NULL);
+                    rdpq_detach_wait();
+                    display_show(display);
+                }
             }
 
             if (menu->mode == MENU_MODE_BOOT) {
