@@ -131,6 +131,7 @@ static void menu_init (boot_params_t *boot_params) {
 
     path_push(path, MENU_CUSTOM_FONT_FILE);
     fonts_init(path_get(path));
+    fonts_set_main_text_color(menu->settings.text_color);
     path_pop(path);
 
     path_push(path, MENU_CACHE_DIRECTORY);

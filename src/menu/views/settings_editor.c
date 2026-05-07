@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include "../bg_slideshow.h"
 #include "../bgm.h"
+#include "../fonts.h"
 #include "../sound.h"
 #include "../settings.h"
 #include "views.h"
@@ -31,6 +32,20 @@ static const char *format_screensaver_timeout (int secs) {
         case 600:  return "10 min";
         case 1800: return "30 min";
         default:   return "Off";
+    }
+}
+
+static const char *format_text_color (int color) {
+    switch (color) {
+        case MAIN_TEXT_COLOR_WHITE:  return "White";
+        case MAIN_TEXT_COLOR_YELLOW: return "Yellow";
+        case MAIN_TEXT_COLOR_CYAN:   return "Cyan";
+        case MAIN_TEXT_COLOR_GREEN:  return "Green";
+        case MAIN_TEXT_COLOR_RED:    return "Red";
+        case MAIN_TEXT_COLOR_ORANGE: return "Orange";
+        case MAIN_TEXT_COLOR_PINK:   return "Pink";
+        case MAIN_TEXT_COLOR_AMBER:  return "Amber";
+        default:                     return "White";
     }
 }
 
@@ -92,6 +107,12 @@ static void set_screensaver_enabled_type (menu_t *menu, void *arg) {
 
 static void set_screensaver_timeout_type (menu_t *menu, void *arg) {
     menu->settings.screensaver_timeout_secs = (int)(uintptr_t)(arg);
+    settings_save(&menu->settings);
+}
+
+static void set_text_color_type (menu_t *menu, void *arg) {
+    menu->settings.text_color = (int)(uintptr_t)(arg);
+    fonts_set_main_text_color(menu->settings.text_color);
     settings_save(&menu->settings);
 }
 
@@ -206,6 +227,28 @@ static component_context_menu_t set_screensaver_enabled_context_menu = {
     .list = {
         {.text = "On",  .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(true) },
         {.text = "Off", .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_text_color_current_selection (menu_t *menu) {
+    int c = menu->settings.text_color;
+    if (c < 0 || c >= MAIN_TEXT_COLOR_COUNT) {
+        c = MAIN_TEXT_COLOR_WHITE;
+    }
+    return c;
+}
+
+static component_context_menu_t set_text_color_context_menu = {
+    .get_default_selection = get_text_color_current_selection,
+    .list = {
+        {.text = "White",  .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_WHITE) },
+        {.text = "Yellow", .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_YELLOW) },
+        {.text = "Cyan",   .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_CYAN) },
+        {.text = "Green",  .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_GREEN) },
+        {.text = "Red",    .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_RED) },
+        {.text = "Orange", .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_ORANGE) },
+        {.text = "Pink",   .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_PINK) },
+        {.text = "Amber",  .action = set_text_color_type, .arg = (void *)(uintptr_t)(MAIN_TEXT_COLOR_AMBER) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
@@ -359,6 +402,7 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
     { .text = "Screensaver", .submenu = &set_screensaver_enabled_context_menu },
     { .text = "Screensaver Timeout", .submenu = &set_screensaver_timeout_context_menu },
+    { .text = "Text Color", .submenu = &set_text_color_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -432,6 +476,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     BG Image Rotation : %s\n"
         "     Screensaver       : %s\n"
         "     Screensaver Time  : %s\n"
+        "     Text Color        : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -459,6 +504,7 @@ static void draw (menu_t *menu, surface_t *d) {
         format_bg_interval(menu->settings.bg_rotation_interval_secs),
         format_switch(menu->settings.screensaver_enabled),
         format_screensaver_timeout(menu->settings.screensaver_timeout_secs),
+        format_text_color(menu->settings.text_color),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED

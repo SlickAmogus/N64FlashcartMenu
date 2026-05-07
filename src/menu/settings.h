@@ -61,6 +61,9 @@ typedef struct {
     /** @brief Idle seconds before screensaver activates (0 = never) */
     int screensaver_timeout_secs;
 
+    /** @brief Main text colour selector (main_text_color_t) */
+    int text_color;
+
     /** @brief Enable rumble feedback within the menu */
     bool rumble_enabled;
 

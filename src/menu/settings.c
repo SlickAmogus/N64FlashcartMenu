@@ -36,6 +36,7 @@ static settings_t init = {
     .use_animated_backgrounds = true,
     .screensaver_enabled = true,
     .screensaver_timeout_secs = 300,
+    .text_color = 0, /* MAIN_TEXT_COLOR_WHITE */
 };
 
 
@@ -68,6 +69,7 @@ void settings_load (settings_t *settings) {
     settings->use_animated_backgrounds = mini_get_bool(ini, "menu", "use_animated_backgrounds", init.use_animated_backgrounds);
     settings->screensaver_enabled = mini_get_bool(ini, "menu", "screensaver_enabled", init.screensaver_enabled);
     settings->screensaver_timeout_secs = mini_get_int(ini, "menu", "screensaver_timeout_secs", init.screensaver_timeout_secs);
+    settings->text_color = mini_get_int(ini, "menu", "text_color", init.text_color);
 
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
     settings->rom_autoload_enabled = mini_get_bool(ini, "menu", "autoload_rom_enabled", init.rom_autoload_enabled);
@@ -103,6 +105,7 @@ void settings_save (settings_t *settings) {
     mini_set_bool(ini, "menu", "use_animated_backgrounds", settings->use_animated_backgrounds);
     mini_set_bool(ini, "menu", "screensaver_enabled", settings->screensaver_enabled);
     mini_set_int(ini, "menu", "screensaver_timeout_secs", settings->screensaver_timeout_secs);
+    mini_set_int(ini, "menu", "text_color", settings->text_color);
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
     mini_set_bool(ini, "menu", "autoload_rom_enabled", settings->rom_autoload_enabled);
     mini_set_string(ini, "autoload", "rom_path", settings->rom_autoload_path);

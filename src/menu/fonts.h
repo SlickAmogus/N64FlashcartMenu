@@ -34,13 +34,39 @@ typedef enum {
 } menu_font_style_t;
 
 /**
+ * @brief User-selectable colour for the default (main) text style.
+ *
+ * Only STL_DEFAULT is repainted; semantic styles (STL_RED for errors,
+ * STL_GREEN for confirmations, etc.) keep their fixed colours so warnings
+ * remain visually distinct regardless of the user's choice.
+ */
+typedef enum {
+    MAIN_TEXT_COLOR_WHITE = 0,
+    MAIN_TEXT_COLOR_YELLOW,
+    MAIN_TEXT_COLOR_CYAN,
+    MAIN_TEXT_COLOR_GREEN,
+    MAIN_TEXT_COLOR_RED,
+    MAIN_TEXT_COLOR_ORANGE,
+    MAIN_TEXT_COLOR_PINK,
+    MAIN_TEXT_COLOR_AMBER,
+    MAIN_TEXT_COLOR_COUNT,
+} main_text_color_t;
+
+/**
  * @brief Initialize fonts.
- * 
- * This function initializes the fonts used in the menu system. It can load
- * custom fonts from the specified path.
- * 
- * @param custom_font_path Path to the custom font file.
+ *
+ * Loads the default font (custom path if provided, otherwise the ROM-baked
+ * one) and registers all built-in styles.  Honours the most recent value
+ * passed to fonts_set_main_text_color() for STL_DEFAULT.
  */
 void fonts_init(char *custom_font_path);
+
+/**
+ * @brief Choose the user-facing colour for the main text style (STL_DEFAULT).
+ *
+ * Safe to call before or after fonts_init().  Out-of-range values fall back
+ * to white.  Takes effect on subsequent text draws.
+ */
+void fonts_set_main_text_color(int color);
 
 #endif /* FONTS_H__ */
