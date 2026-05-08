@@ -4,9 +4,14 @@
  * @ingroup menu
  *
  * After a configurable idle period the menu can switch to a full-screen black
- * background with a single bouncing colored label, DVD-screensaver style.
- * Any joypad input deactivates it.  The bouncer's color cycles each time it
- * bounces off an edge.
+ * background with a single bouncing element, DVD-screensaver style.  Any
+ * joypad input deactivates it.  The element bounces off all four edges and,
+ * when text is being drawn, cycles colour on each bounce.
+ *
+ * The bouncer is a PNG image if `/menu/screensaver/bouncer.png` exists on
+ * the SD card; otherwise it falls back to a colored text label.  The text
+ * itself is user-configurable via the `screensaver_text` key in
+ * `config.ini`'s `[menu]` section.
  */
 
 #ifndef SCREENSAVER_H__
@@ -15,16 +20,41 @@
 #include <libdragon.h>
 #include <stdbool.h>
 
-void screensaver_init (void);
+/**
+ * @brief Initialize the screensaver.
+ *
+ * Sets the fallback text label and (asynchronously) attempts to load
+ * @p image_path as a PNG.  Either argument may be NULL; if @p text is NULL
+ * a default label is used, and if @p image_path is NULL no image load is
+ * attempted.  Image dimensions are capped to keep the working buffer small.
+ */
+void screensaver_init (const char *image_path, const char *text);
+
 void screensaver_deinit (void);
 
-/** Toggle the active state.  On activation the bouncer's position/velocity
- *  are randomised; on deactivation this is a no-op. */
+/**
+ * @brief Replace the fallback bouncer text.  Copies internally; the caller
+ *        retains ownership of @p text.  NULL restores the default.
+ */
+void screensaver_set_text (const char *text);
+
+/**
+ * @brief Drive the asynchronous PNG load forward.  Cheap when nothing's
+ *        pending — call once per frame from the main loop.
+ */
+void screensaver_process (void);
+
+/**
+ * @brief Toggle the active state.  On activation the bouncer's position and
+ *        velocity are randomised; on deactivation this is a no-op.
+ */
 void screensaver_set_active (bool active);
 
-/** Draw a full-screen frame: black fill + bouncing label.  Self-contained:
- *  performs its own rdpq_attach / rdpq_detach_show.  Time advances based on
- *  the wall-clock delta since the last call. */
+/**
+ * @brief Draw one full-screen frame: black fill plus the bouncing element.
+ *        Self-contained — performs its own rdpq_attach / rdpq_detach_show.
+ *        Time advances based on the wall-clock delta since the last call.
+ */
 void screensaver_draw (surface_t *display);
 
 #endif /* SCREENSAVER_H__ */

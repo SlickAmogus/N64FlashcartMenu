@@ -61,6 +61,9 @@ typedef struct {
     /** @brief Idle seconds before screensaver activates (0 = never) */
     int screensaver_timeout_secs;
 
+    /** @brief Bouncer text shown when no /menu/screensaver/bouncer.png exists */
+    char *screensaver_text;
+
     /** @brief Main text colour selector (main_text_color_t) */
     int text_color;
 

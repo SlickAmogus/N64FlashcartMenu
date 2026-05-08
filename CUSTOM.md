@@ -28,7 +28,8 @@ SD card root/
     │   ├── back.wav64
     │   ├── error.wav64
     │   └── settings.wav64
-    └── backgrounds/      ← .png files and/or a .m1v video
+    ├── backgrounds/      ← .png files and/or a .m1v video
+    └── screensaver/      ← optional bouncer.png for the idle screensaver
 ```
 
 All folders are optional.
@@ -79,6 +80,42 @@ ffmpeg -i input.mp4 -vf scale=640:480 -c:v mpeg1video -q:v 6 -an background.m1v
 ```
 
 Place the `.m1v` file in `/menu/backgrounds/` on the SD card. It loops continuously. PNG files in the same folder are ignored when a video is present.
+
+---
+
+## Screensaver (idle / burn-in protection)
+
+After a configurable idle period the menu switches to a black screen with a single bouncing element — DVD-screensaver style — to protect CRT/plasma TVs from burning the white menu text into the phosphor.  Any joypad input dismisses it; the wake-up press is suppressed so it doesn't double as a menu action.
+
+**What bounces:**
+- If `/menu/screensaver/bouncer.png` exists, the image bounces (untinted).
+- Otherwise a colored text label bounces, cycling color on each edge bounce.
+
+**Image limits:** PNGs up to 320×240 are accepted.  Larger images fail to decode and the screensaver falls back to text.
+
+**Customizable text** (config.ini, `[menu]` section):
+
+```ini
+[menu]
+screensaver_text = MY CUSTOM LABEL
+```
+
+Default is `SLICKAMOGUS`.  Edit the file directly on the SD card to change.
+
+**In-menu settings:**
+
+| Setting | Default | Description |
+|---|---|---|
+| Screensaver | On | Toggle the screensaver on/off |
+| Screensaver Timeout | 5 min | 1 / 5 / 10 / 30 min, or Off |
+
+The screensaver only activates from the file browser view, so the music player keeps playing if you walk away mid-song.
+
+---
+
+## Text Color
+
+The main menu text color is configurable in **Settings → Text Color**.  Choices: White (default), Yellow, Cyan, Green, Red, Orange, Pink, Amber.  Change applies immediately, no reboot.  Semantic styles (red errors, green confirmations) are intentionally left at their fixed colors so warnings remain distinct.
 
 ---
 
