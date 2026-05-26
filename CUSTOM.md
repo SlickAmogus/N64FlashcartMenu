@@ -48,6 +48,21 @@ All folders are optional.
 
 ---
 
+## Converting BGM → 128 kbps MP3
+
+High-bitrate MP3s can cause audio glitches on N64 because decoding is CPU-bound.  Encoding at 128 kbps eliminates this while being indistinguishable at N64 audio quality.  Requires ffmpeg on PATH.
+
+**Windows:**
+
+```bat
+tools\convert_bgm.bat my_song.flac  sd_card\menu\music
+tools\convert_bgm.bat my_song.mp3   sd_card\menu\music
+```
+
+Accepts any format ffmpeg can decode.  Output is always 128 kbps stereo 44100 Hz MP3.
+
+---
+
 ## Converting WAV → WAV64
 
 **Windows (Docker wrapper):**
@@ -110,6 +125,12 @@ Default is `SLICKAMOGUS`.  Edit the file directly on the SD card to change.
 | Screensaver Timeout | 5 min | 1 / 5 / 10 / 30 min, or Off |
 
 The screensaver only activates from the file browser view, so the music player keeps playing if you walk away mid-song.
+
+---
+
+## Marquee Scroll
+
+Long ROM/file names that would normally be truncated with `...` now scroll smoothly when selected — DVD ticker style.  Short names display normally.  No configuration needed.
 
 ---
 

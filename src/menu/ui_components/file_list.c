@@ -5,32 +5,32 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
+
+#include <libdragon.h>
 
 #include "../ui_components.h"
 #include "../fonts.h"
 #include "constants.h"
 
-/**
- * @brief Icon string for directory entries in the file list.
- */
 static const char *directory_icon = "[DIR] ";
-// static const char *archive_icon = "[Zip] ";
-// static const char *rom_icon = "[Rom] ";
-// static const char *disk_icon = "[Disk] ";
-// static const char *music_icon = "[Mp3] ";
-// static const char *text_icon = "[Txt] ";
-// static const char *image_icon = "[Png] ";
-// static const char *save_icon = "[Save] ";
-// static const char *other_icon = "[?] ";
 
-/**
- * @brief Format the file size into a human-readable string.
- *
- * @param buffer Buffer to store the formatted string.
- * @param size Size of the file in bytes.
- * @return Number of characters written to the buffer.
- */
-static int format_file_size(char *buffer, int64_t size) {
+/* Pixel width available for file names in the paragraph layout */
+#define TEXT_AREA_WIDTH     (FILE_LIST_MAX_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2))
+/* Marquee scroll speed (pixels per second) */
+#define MARQUEE_SPEED_PX_S  (80.0f)
+/* Pause at each end of the marquee before reversing direction (milliseconds) */
+#define MARQUEE_PAUSE_MS    (1500)
+
+/* Marquee state — persists across draw calls so the scroll is continuous */
+static float    s_mq_offset      = 0.0f;
+static float    s_mq_max         = 0.0f;
+static bool     s_mq_fwd         = true;
+static uint32_t s_mq_pause_until = 0;
+static uint32_t s_mq_last_ms     = 0;
+static int      s_mq_idx         = -1;
+
+static int format_file_size (char *buffer, int64_t size) {
     if (size < 0) {
         return sprintf(buffer, "unknown");
     } else if (size == 0) {
@@ -46,14 +46,20 @@ static int format_file_size(char *buffer, int64_t size) {
     }
 }
 
-/**
- * @brief Draw the file list UI component.
- *
- * @param list Pointer to the list of file entries.
- * @param entries Number of entries in the list.
- * @param selected Index of the currently selected entry.
- */
-void ui_components_file_list_draw(entry_t *list, int entries, int selected) {
+static menu_font_style_t style_for_entry (entry_type_t type) {
+    switch (type) {
+        case ENTRY_TYPE_DIR:    return STL_YELLOW;
+        case ENTRY_TYPE_SAVE:   return STL_GREEN;
+        case ENTRY_TYPE_IMAGE:
+        case ENTRY_TYPE_MUSIC:  return STL_BLUE;
+        case ENTRY_TYPE_TEXT:
+        case ENTRY_TYPE_ARCHIVE: return STL_ORANGE;
+        case ENTRY_TYPE_OTHER:  return STL_GRAY;
+        default:                return STL_DEFAULT;
+    }
+}
+
+void ui_components_file_list_draw (entry_t *list, int entries, int selected) {
     int starting_position = 0;
 
     if (entries > LIST_ENTRIES && selected >= (LIST_ENTRIES / 2)) {
@@ -73,134 +79,189 @@ void ui_components_file_list_draw(entry_t *list, int entries, int selected) {
             "^%02X** empty directory **",
             STL_GRAY
         );
-    } else {
-        rdpq_paragraph_t *file_list_layout;
-        rdpq_paragraph_t *layout;
-
-        size_t name_lengths[LIST_ENTRIES];
-        size_t total_length = 1;
-
-        for (int i = 0; i < LIST_ENTRIES; i++) {
-            int entry_index = starting_position + i;
-
-            if (entry_index >= entries) {
-                name_lengths[i] = 0;
-            } else {
-                size_t length = strlen(list[entry_index].name);
-                name_lengths[i] = length;
-                total_length += length;
-            }
-        }
-
-        file_list_layout = malloc(sizeof(rdpq_paragraph_t) + (sizeof(rdpq_paragraph_char_t) * total_length));
-        memset(file_list_layout, 0, sizeof(rdpq_paragraph_t));
-        file_list_layout->capacity = total_length;
-
-        rdpq_paragraph_builder_begin(
-            &(rdpq_textparms_t) {
-                .width = FILE_LIST_MAX_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2),
-                .height = LAYOUT_ACTIONS_SEPARATOR_Y - VISIBLE_AREA_Y0  - (TEXT_MARGIN_VERTICAL * 2),
-                .wrap = WRAP_ELLIPSES,
-                .line_spacing = TEXT_LINE_SPACING_ADJUST,
-            },
-            FNT_DEFAULT,
-            file_list_layout
-        );
-
-        for (int i = 0; i < LIST_ENTRIES; i++) {
-            int entry_index = starting_position + i;
-
-            entry_t *entry = &list[entry_index];
-
-            menu_font_style_t style;
-
-            switch (entry->type) {
-                case ENTRY_TYPE_DIR: style = STL_YELLOW; break;
-                case ENTRY_TYPE_ROM: style = STL_DEFAULT; break;
-                case ENTRY_TYPE_DISK: style = STL_DEFAULT; break;
-                case ENTRY_TYPE_EMULATOR: style = STL_DEFAULT; break;
-                case ENTRY_TYPE_SAVE: style = STL_GREEN; break;
-                case ENTRY_TYPE_IMAGE: style = STL_BLUE; break;
-                case ENTRY_TYPE_MUSIC: style = STL_BLUE; break;
-                case ENTRY_TYPE_TEXT: style = STL_ORANGE; break;
-                case ENTRY_TYPE_OTHER: style = STL_GRAY; break;
-                case ENTRY_TYPE_ARCHIVE: style = STL_ORANGE; break;
-                case ENTRY_TYPE_ARCHIVED: style = STL_DEFAULT; break;
-                default: style = STL_GRAY; break;
-            }
-
-            rdpq_paragraph_builder_style(style);
-
-            rdpq_paragraph_builder_span(entry->name, name_lengths[i]);
-
-            if ((entry_index + 1) >= entries) {
-                break;
-            }
-
-            rdpq_paragraph_builder_newline();
-        }
-
-        layout = rdpq_paragraph_builder_end();
-
-        int highlight_height = (layout->bbox.y1 - layout->bbox.y0) / layout->nlines;
-        int highlight_y = VISIBLE_AREA_Y0 + TAB_HEIGHT + TEXT_MARGIN_VERTICAL + TEXT_OFFSET_VERTICAL + ((selected - starting_position) * highlight_height);
-
-        ui_components_box_draw(
-            FILE_LIST_HIGHLIGHT_X,
-            highlight_y,
-            FILE_LIST_HIGHLIGHT_X + FILE_LIST_HIGHLIGHT_WIDTH,
-            highlight_y + highlight_height,
-            FILE_LIST_HIGHLIGHT_COLOR
-        );
-
-        rdpq_paragraph_render(
-            layout,
-            VISIBLE_AREA_X0 + TEXT_MARGIN_HORIZONTAL,
-            VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT + TEXT_OFFSET_VERTICAL
-        );
-
-        rdpq_paragraph_free(layout);
-
-        rdpq_paragraph_builder_begin(
-            &(rdpq_textparms_t) {
-                .width = VISIBLE_AREA_WIDTH - LIST_SCROLLBAR_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2),
-                .height = LAYOUT_ACTIONS_SEPARATOR_Y - VISIBLE_AREA_Y0  - (TEXT_MARGIN_VERTICAL * 2),
-                .align = ALIGN_RIGHT,
-                .wrap = WRAP_ELLIPSES,
-                .line_spacing = TEXT_LINE_SPACING_ADJUST,
-            },
-            FNT_DEFAULT,
-            NULL
-        );
-
-        char file_size[16];
-
-        for (int i = starting_position; i < entries; i++) {
-            entry_t *entry = &list[i];
-
-            if (entry->type != ENTRY_TYPE_DIR) {
-                // TODO: add option to use font icons instead of file sizes.
-                rdpq_paragraph_builder_span(file_size, format_file_size(file_size, entry->size));
-            }
-            else {
-                rdpq_paragraph_builder_span(directory_icon, 5);
-            }
-
-            if ((i + 1) == (starting_position + LIST_ENTRIES)) {
-                break;
-            }
-
-            rdpq_paragraph_builder_newline();
-        }
-
-        layout = rdpq_paragraph_builder_end();
-
-        rdpq_paragraph_render(
-            layout,
-            VISIBLE_AREA_X0 + TEXT_MARGIN_HORIZONTAL,
-            VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT + TEXT_OFFSET_VERTICAL
-        );
-
-        rdpq_paragraph_free(layout);
+        return;
     }
+
+    int sel_vis = selected - starting_position;
+    entry_t *sel_entry = &list[selected];
+    menu_font_style_t sel_style = style_for_entry(sel_entry->type);
+
+    /* ------------------------------------------------------------------
+     * Build a no-wrap layout for the selected entry to measure its real
+     * pixel width and use as the marquee draw source later.
+     * ------------------------------------------------------------------ */
+    rdpq_paragraph_builder_begin(
+        &(rdpq_textparms_t){ .width = 4096, .wrap = WRAP_NONE },
+        FNT_DEFAULT, NULL
+    );
+    rdpq_paragraph_builder_style(sel_style);
+    rdpq_paragraph_builder_span(sel_entry->name, strlen(sel_entry->name));
+    rdpq_paragraph_t *marquee_layout = rdpq_paragraph_builder_end();
+
+    float text_w = (float)(marquee_layout->bbox.x1 - marquee_layout->bbox.x0);
+    bool needs_marquee = (text_w > (float)TEXT_AREA_WIDTH);
+
+    /* Update marquee scroll state */
+    uint32_t now_ms = get_ticks_ms();
+    if (selected != s_mq_idx) {
+        s_mq_idx         = selected;
+        s_mq_offset      = 0.0f;
+        s_mq_fwd         = true;
+        s_mq_max         = needs_marquee ? (text_w - (float)TEXT_AREA_WIDTH) : 0.0f;
+        s_mq_pause_until = now_ms + MARQUEE_PAUSE_MS;
+        s_mq_last_ms     = now_ms;
+    } else if (needs_marquee) {
+        s_mq_max = text_w - (float)TEXT_AREA_WIDTH;
+        if (now_ms >= s_mq_pause_until) {
+            float dt = (float)(now_ms - s_mq_last_ms) / 1000.0f;
+            if (dt > 0.1f) dt = 0.1f;
+            if (s_mq_fwd) {
+                s_mq_offset += MARQUEE_SPEED_PX_S * dt;
+                if (s_mq_offset >= s_mq_max) {
+                    s_mq_offset      = s_mq_max;
+                    s_mq_fwd         = false;
+                    s_mq_pause_until = now_ms + MARQUEE_PAUSE_MS;
+                }
+            } else {
+                s_mq_offset -= MARQUEE_SPEED_PX_S * dt;
+                if (s_mq_offset <= 0.0f) {
+                    s_mq_offset      = 0.0f;
+                    s_mq_fwd         = true;
+                    s_mq_pause_until = now_ms + MARQUEE_PAUSE_MS;
+                }
+            }
+        }
+        s_mq_last_ms = now_ms;
+    }
+
+    /* ------------------------------------------------------------------
+     * Main file list paragraph.  For the selected entry, substitute a
+     * single space when marquee is active — this preserves line height
+     * while rendering nothing visible over the highlight box.
+     * ------------------------------------------------------------------ */
+    size_t name_lengths[LIST_ENTRIES];
+    size_t total_length = 1;
+
+    for (int i = 0; i < LIST_ENTRIES; i++) {
+        int entry_index = starting_position + i;
+        if (entry_index >= entries) {
+            name_lengths[i] = 0;
+        } else if (entry_index == selected && needs_marquee) {
+            name_lengths[i] = 1;
+            total_length += 1;
+        } else {
+            size_t length = strlen(list[entry_index].name);
+            name_lengths[i] = length;
+            total_length += length;
+        }
+    }
+
+    rdpq_paragraph_t *file_list_layout = malloc(
+        sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * total_length
+    );
+    memset(file_list_layout, 0, sizeof(rdpq_paragraph_t));
+    file_list_layout->capacity = total_length;
+
+    rdpq_paragraph_builder_begin(
+        &(rdpq_textparms_t) {
+            .width = FILE_LIST_MAX_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2),
+            .height = LAYOUT_ACTIONS_SEPARATOR_Y - VISIBLE_AREA_Y0 - (TEXT_MARGIN_VERTICAL * 2),
+            .wrap = WRAP_ELLIPSES,
+            .line_spacing = TEXT_LINE_SPACING_ADJUST,
+        },
+        FNT_DEFAULT,
+        file_list_layout
+    );
+
+    for (int i = 0; i < LIST_ENTRIES; i++) {
+        int entry_index = starting_position + i;
+        entry_t *entry = &list[entry_index];
+
+        rdpq_paragraph_builder_style(style_for_entry(entry->type));
+
+        if (entry_index == selected && needs_marquee) {
+            rdpq_paragraph_builder_span(" ", 1);
+        } else {
+            rdpq_paragraph_builder_span(entry->name, name_lengths[i]);
+        }
+
+        if ((entry_index + 1) >= entries) {
+            break;
+        }
+
+        rdpq_paragraph_builder_newline();
+    }
+
+    rdpq_paragraph_t *layout = rdpq_paragraph_builder_end();
+
+    int highlight_height = (layout->bbox.y1 - layout->bbox.y0) / layout->nlines;
+    int highlight_y = VISIBLE_AREA_Y0 + TAB_HEIGHT + TEXT_MARGIN_VERTICAL + TEXT_OFFSET_VERTICAL
+                    + (sel_vis * highlight_height);
+
+    ui_components_box_draw(
+        FILE_LIST_HIGHLIGHT_X,
+        highlight_y,
+        FILE_LIST_HIGHLIGHT_X + FILE_LIST_HIGHLIGHT_WIDTH,
+        highlight_y + highlight_height,
+        FILE_LIST_HIGHLIGHT_COLOR
+    );
+
+    int para_base_y = VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT + TEXT_OFFSET_VERTICAL;
+    int text_x = VISIBLE_AREA_X0 + TEXT_MARGIN_HORIZONTAL;
+
+    rdpq_paragraph_render(layout, text_x, para_base_y);
+    rdpq_paragraph_free(layout);
+
+    /* ------------------------------------------------------------------
+     * Marquee: scissor-clip the selected row and render the scrolling text.
+     * ------------------------------------------------------------------ */
+    if (needs_marquee) {
+        int clip_x1 = VISIBLE_AREA_X0 + FILE_LIST_MAX_WIDTH - TEXT_MARGIN_HORIZONTAL;
+        rdpq_set_scissor(text_x, highlight_y, clip_x1, highlight_y + highlight_height);
+        rdpq_paragraph_render(
+            marquee_layout,
+            text_x - (int)s_mq_offset,
+            para_base_y + sel_vis * highlight_height
+        );
+        rdpq_set_scissor(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    }
+
+    rdpq_paragraph_free(marquee_layout);
+
+    /* ------------------------------------------------------------------
+     * Right-aligned file sizes / directory icons.
+     * ------------------------------------------------------------------ */
+    rdpq_paragraph_builder_begin(
+        &(rdpq_textparms_t) {
+            .width = VISIBLE_AREA_WIDTH - LIST_SCROLLBAR_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2),
+            .height = LAYOUT_ACTIONS_SEPARATOR_Y - VISIBLE_AREA_Y0 - (TEXT_MARGIN_VERTICAL * 2),
+            .align = ALIGN_RIGHT,
+            .wrap = WRAP_ELLIPSES,
+            .line_spacing = TEXT_LINE_SPACING_ADJUST,
+        },
+        FNT_DEFAULT,
+        NULL
+    );
+
+    char file_size[16];
+
+    for (int i = starting_position; i < entries; i++) {
+        entry_t *entry = &list[i];
+
+        if (entry->type != ENTRY_TYPE_DIR) {
+            rdpq_paragraph_builder_span(file_size, format_file_size(file_size, entry->size));
+        } else {
+            rdpq_paragraph_builder_span(directory_icon, 5);
+        }
+
+        if ((i + 1) == (starting_position + LIST_ENTRIES)) {
+            break;
+        }
+
+        rdpq_paragraph_builder_newline();
+    }
+
+    layout = rdpq_paragraph_builder_end();
+    rdpq_paragraph_render(layout, text_x, para_base_y);
+    rdpq_paragraph_free(layout);
 }
