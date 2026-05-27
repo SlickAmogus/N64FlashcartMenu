@@ -87,14 +87,22 @@ void ui_components_file_list_draw (entry_t *list, int entries, int selected) {
     menu_font_style_t sel_style = style_for_entry(sel_entry->type);
 
     /* ------------------------------------------------------------------
-     * Build a no-wrap layout for the selected entry to measure its real
-     * pixel width and use as the marquee draw source later.
+     * Build a no-wrap layout that mirrors the main paragraph's line
+     * structure: sel_vis empty leading lines followed by the selected
+     * entry's full name.  Rendered at the same para_base_y as the main
+     * paragraph, line sel_vis lands at exactly the right Y automatically.
+     * The scissor clips away the leading lines; X offset drives the scroll.
      * ------------------------------------------------------------------ */
     rdpq_paragraph_builder_begin(
-        &(rdpq_textparms_t){ .width = 4096, .wrap = WRAP_NONE },
+        &(rdpq_textparms_t){ .width = 4096, .wrap = WRAP_NONE,
+                             .line_spacing = TEXT_LINE_SPACING_ADJUST },
         FNT_DEFAULT, NULL
     );
     rdpq_paragraph_builder_style(sel_style);
+    for (int i = 0; i < sel_vis; i++) {
+        rdpq_paragraph_builder_span(" ", 1);
+        rdpq_paragraph_builder_newline();
+    }
     rdpq_paragraph_builder_span(sel_entry->name, strlen(sel_entry->name));
     rdpq_paragraph_t *marquee_layout = rdpq_paragraph_builder_end();
 
@@ -221,7 +229,7 @@ void ui_components_file_list_draw (entry_t *list, int entries, int selected) {
         rdpq_paragraph_render(
             marquee_layout,
             text_x - (int)s_mq_offset,
-            para_base_y + sel_vis * highlight_height
+            para_base_y
         );
         rdpq_set_scissor(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     }
