@@ -10,11 +10,13 @@ A customized fork of [N64FlashcartMenu](https://github.com/Polprzewodnikowy/N64F
 
 | Feature | Description |
 |---|---|
-| **Background music** | Plays `.mp3` files from `/menu/music/` on the SD card; shuffled order; auto-pauses when the in-menu music player is opened. |
-| **Custom sound effects** | Loads `.wav64` files from `/menu/effects/` for cursor / enter / back / error / settings clicks. Falls back to the built-in ROM sounds when files are missing. |
-| **Background slideshow** | Rotates `.png` files from `/menu/backgrounds/` at a configurable interval (Off / 30s / 1 min / 2 min / 5 min). Up to 400 PNGs supported, shuffled per session. PNGs up to 1280×1024 are accepted (downscaled at convert time). |
-| **Animated MPEG1 background** | A single `.m1v` video in `/menu/backgrounds/` plays as a looping background. Takes priority over PNGs when present. Toggleable in-menu. |
-| **New config options** | `bg_rotation_interval_secs` and `use_animated_backgrounds` are persisted to `config.ini` `[menu]` section and exposed in the in-menu settings editor. |
+| **Background music** | Plays `.mp3` files from `/menu/music/` shuffled; auto-pauses when the in-menu music player is opened. |
+| **Custom sound effects** | Loads `.wav64` files from `/menu/effects/` for cursor / enter / back / error / settings clicks. Falls back to ROM sounds when missing. |
+| **Background slideshow** | Rotates `.png` files from `/menu/backgrounds/` at a configurable interval (Off / 30s / 1 min / 2 min / 5 min). Up to 400 PNGs, shuffled. PNGs up to 1280×1024 accepted. |
+| **Animated MPEG1 background** | A single `.m1v` video in `/menu/backgrounds/` loops as the background. Takes priority over PNGs; toggleable in-menu. |
+| **Screensaver** | After a configurable idle timeout, the browser dims to a bouncing element (DVD-style) to protect CRTs. Any button press wakes it; the wake press is swallowed. |
+| **Marquee scroll** | Long file/ROM names that would normally be truncated now smoothly scroll when selected. No config needed. |
+| **Configurable text color** | Main text color is set in **Settings → Text Color** (White / Yellow / Cyan / Green / Red / Orange / Pink / Amber). Takes effect immediately. |
 
 ---
 
@@ -26,10 +28,13 @@ SD card root/
 └── menu/
     ├── music/            ← .mp3 files (BGM, shuffled)
     ├── effects/          ← cursor.wav64, enter.wav64, back.wav64, error.wav64, settings.wav64
-    └── backgrounds/      ← .png files OR a single .m1v video
+    ├── backgrounds/      ← .png files OR a single .m1v video
+    └── screensaver/      ← bouncer.png (optional — falls back to animated text)
 ```
 
 All folders are optional — anything missing just disables that feature.
+
+> **Screensaver image:** place any PNG (up to 320×240) at `/menu/screensaver/bouncer.png`. It will bounce around the screen. Without it, a colored text label bounces and cycles color on each edge hit.
 
 ---
 
@@ -40,19 +45,24 @@ All folders are optional — anything missing just disables that feature.
 | Background Music | On | Toggle MP3 BGM on/off. |
 | Sound Effects | On | Toggle menu SFX on/off. |
 | BG Image Rotation | 1 min | Off / 30s / 1 min / 2 min / 5 min. |
-| Animated Backgrounds | On | When On, an `.m1v` in `/menu/backgrounds/` plays instead of the PNG slideshow. Off forces PNG slideshow even if a video exists. |
+| Animated Backgrounds | On | When On, a `.m1v` in `/menu/backgrounds/` plays instead of the PNG slideshow. |
+| Screensaver | On | Toggle the screensaver on/off. |
+| Screensaver Timeout | 5 min | 1 / 5 / 10 / 30 min, or Off. |
+| Text Color | White | White / Yellow / Cyan / Green / Red / Orange / Pink / Amber. Applies immediately. |
 
 ---
 
 ## Asset preparation tools (Windows)
 
-Found in `tools/`. All three require ffmpeg / Docker on `PATH`.
+Found in `tools/`. All require ffmpeg / Docker on `PATH`.
 
 | Script | Purpose |
 |---|---|
+| `tools\convert_bgm.bat <file> [out_dir]` | Re-encodes any audio file to 128 kbps MP3 with loudness normalization. Input can be `.mp3`, `.flac`, `.wav`, `.ogg`, etc. Safe to run on existing MP3s. |
 | `tools\convert_wav.bat <file.wav> <out_dir>` | Wraps `audioconv64` in Docker to produce a `.wav64` SFX file. |
 | `tools\convert_bg.bat [input_folder] [crop\|fit\|stretch]` | Bulk-converts PNGs in a folder to 640×480 backgrounds via ffmpeg. Output goes to `<input_folder>\converted\`. Default mode is `crop` (scale-to-cover then center-crop). |
 | `tools\rename_bg.bat [folder]` | Renames PNGs in a folder to `bg1.png`, `bg2.png`, … sequentially. Useful before copying to the SD card. |
+| `tools\build.bat` | Interactive build wrapper — choose Incremental (fast) or Full (rebuilds everything from scratch). |
 
 ### Animated background (MPEG1)
 

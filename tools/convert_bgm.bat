@@ -50,7 +50,18 @@ echo Input : %INPUT_ABS%
 echo Output: %OUTPUT_FILE%
 
 :: Encode to a temp file so the source is never touched mid-encode.
-ffmpeg -y -i "%INPUT_ABS%" -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 "%TEMP_FILE%"
+:: -vn            strip any embedded video / album-art stream
+:: -b:a 128k      128 kbps CBR (safe for N64 real-time decode)
+:: -ar 44100      lock to 44100 Hz (avoids resampler artifacts)
+:: -ac 2          stereo
+:: -af loudnorm   EBU R128 loudness normalization — consistent volume across tracks
+:: -id3v2_version 3  write ID3v2.3 tags (broadest compatibility)
+ffmpeg -y -i "%INPUT_ABS%" ^
+    -vn ^
+    -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 ^
+    -af "loudnorm=I=-16:TP=-1.5:LRA=11" ^
+    -id3v2_version 3 ^
+    "%TEMP_FILE%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: ffmpeg conversion failed.
