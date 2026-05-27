@@ -8,6 +8,8 @@
 ::   tools\convert_bgm.bat <input> [output_dir]
 ::
 :: If output_dir is omitted, the converted file is placed next to the input.
+:: The original file is never modified — output goes to a temp file first,
+:: then replaces the destination only after a successful encode.
 ::
 :: Examples:
 ::   tools\convert_bgm.bat music\theme.flac  sd_card\menu\music
@@ -42,15 +44,21 @@ if not exist "%OUTPUT_DIR%" (
 )
 
 set "OUTPUT_FILE=%OUTPUT_DIR%\%INPUT_NAME%.mp3"
+set "TEMP_FILE=%OUTPUT_DIR%\%INPUT_NAME%.tmp.mp3"
 
 echo Input : %INPUT_ABS%
 echo Output: %OUTPUT_FILE%
 
-ffmpeg -y -i "%INPUT_ABS%" -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 "%OUTPUT_FILE%"
+:: Encode to a temp file so the source is never touched mid-encode.
+ffmpeg -y -i "%INPUT_ABS%" -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 "%TEMP_FILE%"
 
-if %ERRORLEVEL%==0 (
-    echo Done: %OUTPUT_FILE%
-) else (
+if %ERRORLEVEL% NEQ 0 (
     echo ERROR: ffmpeg conversion failed.
+    if exist "%TEMP_FILE%" del "%TEMP_FILE%"
     exit /b 1
 )
+
+:: Rename temp to final destination (overwrites if it already exists).
+move /Y "%TEMP_FILE%" "%OUTPUT_FILE%" >nul
+
+echo Done: %OUTPUT_FILE%
