@@ -51,14 +51,15 @@ echo Output: %OUTPUT_FILE%
 
 :: Encode to a temp file so the source is never touched mid-encode.
 :: -vn            strip any embedded video / album-art stream
-:: -b:a 128k      128 kbps CBR (safe for N64 real-time decode)
-:: -ar 44100      lock to 44100 Hz (avoids resampler artifacts)
+:: -b:a 64k       64 kbps CBR — low enough to decode in real-time on N64
+:: -ar 22050      22050 Hz: half of CD rate, halves frames/sec the decoder must
+::                produce, dramatically reducing CPU load while keeping pitch accurate
 :: -ac 2          stereo
 :: -af loudnorm   EBU R128 loudness normalization — consistent volume across tracks
 :: -id3v2_version 3  write ID3v2.3 tags (broadest compatibility)
 ffmpeg -y -i "%INPUT_ABS%" ^
     -vn ^
-    -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 ^
+    -codec:a libmp3lame -b:a 64k -ar 22050 -ac 2 ^
     -af "loudnorm=I=-16:TP=-1.5:LRA=11" ^
     -id3v2_version 3 ^
     "%TEMP_FILE%"
