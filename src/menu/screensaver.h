@@ -57,4 +57,22 @@ void screensaver_set_active (bool active);
  */
 void screensaver_draw (surface_t *display);
 
+/** @brief Background styles available for the screensaver. */
+typedef enum {
+    SCREENSAVER_BG_BLACK    = 0,
+    SCREENSAVER_BG_NAVY     = 1,
+    SCREENSAVER_BG_CYAN     = 2,
+    SCREENSAVER_BG_PURPLE   = 3,
+    SCREENSAVER_BG_RED      = 4,
+    SCREENSAVER_BG_GREEN    = 5,
+    SCREENSAVER_BG_STARFIELD = 6,
+    SCREENSAVER_BG_COUNT    = 7,
+} screensaver_bg_t;
+
+/**
+ * @brief Set the screensaver background type.  Takes effect on the next draw.
+ *        Values outside the valid range are clamped to BLACK.
+ */
+void screensaver_set_bg (int bg);
+
 #endif /* SCREENSAVER_H__ */

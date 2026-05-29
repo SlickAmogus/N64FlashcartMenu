@@ -150,6 +150,7 @@ static void menu_init (boot_params_t *boot_params) {
     path_push(path, "screensaver");
     path_push(path, "bouncer.png");
     screensaver_init(path_get(path), menu->settings.screensaver_text);
+    screensaver_set_bg(menu->settings.screensaver_bg);
     path_pop(path);
     path_pop(path);
 

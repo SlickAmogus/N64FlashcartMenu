@@ -35,6 +35,7 @@ static int      s_mq_idx         = -1;
 /* Cursor animation state — highlight bar glides smoothly to selected row */
 static float    s_cur_y          = -1.0f;   /* negative = snap on first draw */
 static uint32_t s_cur_last_ms    = 0;
+static int      s_prev_selected  = -1;
 
 static int format_file_size (char *buffer, int64_t size) {
     if (size < 0) {
@@ -208,9 +209,24 @@ void ui_components_file_list_draw (entry_t *list, int entries, int selected) {
                  + (sel_vis * highlight_height);
 
     if (s_cur_y < 0.0f) {
-        s_cur_y       = (float)target_y;
-        s_cur_last_ms = now_ms;
-    } else {
+        s_cur_y          = (float)target_y;
+        s_cur_last_ms    = now_ms;
+        s_prev_selected  = selected;
+    } else if (selected != s_prev_selected) {
+        /* Jump s_cur_y to where the previously-selected row now appears on
+         * screen (accounting for any scroll that just happened), then let
+         * the spring pull it to target_y so the animation is continuous
+         * even when starting_position changes. */
+        int prev_vis = s_prev_selected - starting_position;
+        if (prev_vis < -1)           prev_vis = -1;
+        if (prev_vis > LIST_ENTRIES) prev_vis = LIST_ENTRIES;
+        int prev_base_y = VISIBLE_AREA_Y0 + TAB_HEIGHT + TEXT_MARGIN_VERTICAL
+                        + TEXT_OFFSET_VERTICAL;
+        s_cur_y         = (float)(prev_base_y + prev_vis * highlight_height);
+        s_prev_selected = selected;
+        s_cur_last_ms   = now_ms;
+    }
+    {
         float cur_dt = (float)(now_ms - s_cur_last_ms) / 1000.0f;
         if (cur_dt > 0.1f) cur_dt = 0.1f;
         float k = cur_dt * CURSOR_SPRING_RATE;

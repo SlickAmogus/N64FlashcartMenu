@@ -28,6 +28,24 @@
 
 #define BOUNCER_SPEED_PXMS      (0.08f)
 
+/* ---- Starfield ---- */
+#define STAR_COUNT      120
+#define STAR_FAST_N     40      /* bright white,  fastest */
+#define STAR_MED_N      40      /* light grey, medium */
+#define STAR_SLOW_N     40      /* dim grey,   slowest */
+#define STAR_FAST_SPD   0.060f  /* px/ms */
+#define STAR_MED_SPD    0.030f
+#define STAR_SLOW_SPD   0.012f
+
+typedef struct { float x, y; } star_pos_t;
+
+static star_pos_t stars[STAR_COUNT];
+static bool       stars_ready  = false;
+static uint32_t   star_last_ms = 0;
+
+/* ---- Background ---- */
+static int current_bg = SCREENSAVER_BG_BLACK;
+
 static const uint8_t bouncer_styles[] = {
     STL_GREEN, STL_BLUE, STL_YELLOW, STL_ORANGE, STL_RED,
 };
@@ -48,6 +66,76 @@ static float vel_x, vel_y;
 static int   tint_index = 0;
 static uint32_t last_frame_ms = 0;
 
+
+static void init_stars (void) {
+    for (int i = 0; i < STAR_COUNT; i++) {
+        stars[i].x = (float)(rand() % DISPLAY_WIDTH);
+        stars[i].y = (float)(rand() % DISPLAY_HEIGHT);
+    }
+    stars_ready  = true;
+    star_last_ms = 0;
+}
+
+static void advance_stars (uint32_t now_ms) {
+    if (!stars_ready) {
+        init_stars();
+        star_last_ms = now_ms;
+        return;
+    }
+    uint32_t dt = (star_last_ms == 0) ? 16 : (now_ms - star_last_ms);
+    if (dt > 100) dt = 100;
+    star_last_ms = now_ms;
+
+    for (int i = 0; i < STAR_FAST_N; i++) {
+        stars[i].x -= STAR_FAST_SPD * (float)dt;
+        if (stars[i].x < 0.0f) stars[i].x += (float)DISPLAY_WIDTH;
+    }
+    for (int i = STAR_FAST_N; i < STAR_FAST_N + STAR_MED_N; i++) {
+        stars[i].x -= STAR_MED_SPD * (float)dt;
+        if (stars[i].x < 0.0f) stars[i].x += (float)DISPLAY_WIDTH;
+    }
+    for (int i = STAR_FAST_N + STAR_MED_N; i < STAR_COUNT; i++) {
+        stars[i].x -= STAR_SLOW_SPD * (float)dt;
+        if (stars[i].x < 0.0f) stars[i].x += (float)DISPLAY_WIDTH;
+    }
+}
+
+static void draw_stars (void) {
+    rdpq_set_mode_fill(RGBA32(255, 255, 255, 255));
+    for (int i = 0; i < STAR_FAST_N; i++) {
+        int sx = (int)stars[i].x, sy = (int)stars[i].y;
+        rdpq_fill_rectangle(sx, sy, sx + 1, sy + 1);
+    }
+    rdpq_set_mode_fill(RGBA32(160, 160, 160, 255));
+    for (int i = STAR_FAST_N; i < STAR_FAST_N + STAR_MED_N; i++) {
+        int sx = (int)stars[i].x, sy = (int)stars[i].y;
+        rdpq_fill_rectangle(sx, sy, sx + 1, sy + 1);
+    }
+    rdpq_set_mode_fill(RGBA32(80, 80, 80, 255));
+    for (int i = STAR_FAST_N + STAR_MED_N; i < STAR_COUNT; i++) {
+        int sx = (int)stars[i].x, sy = (int)stars[i].y;
+        rdpq_fill_rectangle(sx, sy, sx + 1, sy + 1);
+    }
+}
+
+static color_t get_bg_color (int bg) {
+    switch (bg) {
+        case SCREENSAVER_BG_NAVY:     return RGBA32(0,   0,  64, 255);
+        case SCREENSAVER_BG_CYAN:     return RGBA32(0,  48,  80, 255);
+        case SCREENSAVER_BG_PURPLE:   return RGBA32(32,  0,  64, 255);
+        case SCREENSAVER_BG_RED:      return RGBA32(64,  0,   0, 255);
+        case SCREENSAVER_BG_GREEN:    return RGBA32(0,  48,   0, 255);
+        default:                      return RGBA32(0,   0,   0, 255);
+    }
+}
+
+void screensaver_set_bg (int bg) {
+    if (bg < 0 || bg >= SCREENSAVER_BG_COUNT) bg = SCREENSAVER_BG_BLACK;
+    current_bg = bg;
+    if (bg == SCREENSAVER_BG_STARFIELD && !stars_ready) {
+        init_stars();
+    }
+}
 
 static float random_velocity_component (void) {
     return (rand() & 1) ? BOUNCER_SPEED_PXMS : -BOUNCER_SPEED_PXMS;
@@ -144,7 +232,9 @@ void screensaver_deinit (void) {
         pending_image_path = NULL;
     }
     image_decoding = false;
-    image_pending = false;
+    image_pending  = false;
+    stars_ready    = false;
+    current_bg     = SCREENSAVER_BG_BLACK;
 }
 
 void screensaver_set_text (const char *text) {
@@ -231,11 +321,19 @@ void screensaver_draw (surface_t *display) {
 
     rdpq_attach_clear(display, NULL);
 
-    rdpq_set_mode_fill(BACKGROUND_EMPTY_COLOR);
+    uint32_t now_ms = get_ticks_ms();
+
+    /* Solid background fill (black for starfield too — stars drawn on top) */
+    rdpq_set_mode_fill(get_bg_color(current_bg));
     rdpq_fill_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
+    if (current_bg == SCREENSAVER_BG_STARFIELD) {
+        advance_stars(now_ms);
+        draw_stars();
+    }
+
     if (active) {
-        advance_bouncer(get_ticks_ms());
+        advance_bouncer(now_ms);
         if (bouncer_image) {
             draw_bouncer_image();
         } else {

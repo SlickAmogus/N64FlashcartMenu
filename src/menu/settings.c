@@ -37,6 +37,7 @@ static settings_t init = {
     .screensaver_enabled = true,
     .screensaver_timeout_secs = 300,
     .screensaver_text = "SLICKAMOGUS",
+    .screensaver_bg = 0, /* SCREENSAVER_BG_BLACK */
     .text_color = 0, /* MAIN_TEXT_COLOR_WHITE */
 };
 
@@ -71,6 +72,7 @@ void settings_load (settings_t *settings) {
     settings->screensaver_enabled = mini_get_bool(ini, "menu", "screensaver_enabled", init.screensaver_enabled);
     settings->screensaver_timeout_secs = mini_get_int(ini, "menu", "screensaver_timeout_secs", init.screensaver_timeout_secs);
     settings->screensaver_text = strdup(mini_get_string(ini, "menu", "screensaver_text", init.screensaver_text));
+    settings->screensaver_bg = mini_get_int(ini, "menu", "screensaver_bg", init.screensaver_bg);
     settings->text_color = mini_get_int(ini, "menu", "text_color", init.text_color);
 
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
@@ -108,6 +110,7 @@ void settings_save (settings_t *settings) {
     mini_set_bool(ini, "menu", "screensaver_enabled", settings->screensaver_enabled);
     mini_set_int(ini, "menu", "screensaver_timeout_secs", settings->screensaver_timeout_secs);
     mini_set_string(ini, "menu", "screensaver_text", settings->screensaver_text);
+    mini_set_int(ini, "menu", "screensaver_bg", settings->screensaver_bg);
     mini_set_int(ini, "menu", "text_color", settings->text_color);
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
     mini_set_bool(ini, "menu", "autoload_rom_enabled", settings->rom_autoload_enabled);

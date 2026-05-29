@@ -2,6 +2,7 @@
 #include "../bg_slideshow.h"
 #include "../bgm.h"
 #include "../fonts.h"
+#include "../screensaver.h"
 #include "../sound.h"
 #include "../settings.h"
 #include "views.h"
@@ -32,6 +33,19 @@ static const char *format_screensaver_timeout (int secs) {
         case 600:  return "10 min";
         case 1800: return "30 min";
         default:   return "Off";
+    }
+}
+
+static const char *format_screensaver_bg (int bg) {
+    switch (bg) {
+        case SCREENSAVER_BG_BLACK:    return "Black";
+        case SCREENSAVER_BG_NAVY:     return "Navy";
+        case SCREENSAVER_BG_CYAN:     return "Cyan";
+        case SCREENSAVER_BG_PURPLE:   return "Purple";
+        case SCREENSAVER_BG_RED:      return "Red";
+        case SCREENSAVER_BG_GREEN:    return "Green";
+        case SCREENSAVER_BG_STARFIELD: return "Starfield";
+        default:                      return "Black";
     }
 }
 
@@ -107,6 +121,12 @@ static void set_screensaver_enabled_type (menu_t *menu, void *arg) {
 
 static void set_screensaver_timeout_type (menu_t *menu, void *arg) {
     menu->settings.screensaver_timeout_secs = (int)(uintptr_t)(arg);
+    settings_save(&menu->settings);
+}
+
+static void set_screensaver_bg_type (menu_t *menu, void *arg) {
+    menu->settings.screensaver_bg = (int)(uintptr_t)(arg);
+    screensaver_set_bg(menu->settings.screensaver_bg);
     settings_save(&menu->settings);
 }
 
@@ -227,6 +247,25 @@ static component_context_menu_t set_screensaver_enabled_context_menu = {
     .list = {
         {.text = "On",  .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(true) },
         {.text = "Off", .action = set_screensaver_enabled_type, .arg = (void *)(uintptr_t)(false) },
+    COMPONENT_CONTEXT_MENU_LIST_END,
+}};
+
+static int get_screensaver_bg_current_selection (menu_t *menu) {
+    int bg = menu->settings.screensaver_bg;
+    if (bg < 0 || bg >= SCREENSAVER_BG_COUNT) bg = SCREENSAVER_BG_BLACK;
+    return bg;
+}
+
+static component_context_menu_t set_screensaver_bg_context_menu = {
+    .get_default_selection = get_screensaver_bg_current_selection,
+    .list = {
+        {.text = "Black",     .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_BLACK) },
+        {.text = "Navy",      .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_NAVY) },
+        {.text = "Cyan",      .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_CYAN) },
+        {.text = "Purple",    .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_PURPLE) },
+        {.text = "Red",       .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_RED) },
+        {.text = "Green",     .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_GREEN) },
+        {.text = "Starfield", .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_STARFIELD) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
 
@@ -402,6 +441,7 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
     { .text = "Screensaver", .submenu = &set_screensaver_enabled_context_menu },
     { .text = "Screensaver Timeout", .submenu = &set_screensaver_timeout_context_menu },
+    { .text = "Screensaver BG", .submenu = &set_screensaver_bg_context_menu },
     { .text = "Text Color", .submenu = &set_text_color_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },
@@ -476,6 +516,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     BG Image Rotation : %s\n"
         "     Screensaver       : %s\n"
         "     Screensaver Time  : %s\n"
+        "     Screensaver BG    : %s\n"
         "     Text Color        : %s\n"
         "     Use Saves folder  : %s\n"
         "     Show Saves folder : %s\n"
@@ -504,6 +545,7 @@ static void draw (menu_t *menu, surface_t *d) {
         format_bg_interval(menu->settings.bg_rotation_interval_secs),
         format_switch(menu->settings.screensaver_enabled),
         format_screensaver_timeout(menu->settings.screensaver_timeout_secs),
+        format_screensaver_bg(menu->settings.screensaver_bg),
         format_text_color(menu->settings.text_color),
         format_switch(menu->settings.use_saves_folder),
         format_switch(menu->settings.show_saves_folder),

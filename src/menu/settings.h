@@ -64,6 +64,9 @@ typedef struct {
     /** @brief Bouncer text shown when no /menu/screensaver/bouncer.png exists */
     char *screensaver_text;
 
+    /** @brief Screensaver background type (screensaver_bg_t) */
+    int screensaver_bg;
+
     /** @brief Main text colour selector (main_text_color_t) */
     int text_color;
 
