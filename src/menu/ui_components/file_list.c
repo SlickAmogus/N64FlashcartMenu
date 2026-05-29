@@ -22,7 +22,7 @@ static const char *directory_icon = "[DIR] ";
 /* Pause at each end of the marquee before reversing direction (milliseconds) */
 #define MARQUEE_PAUSE_MS    (1500)
 /* Cursor spring rate: fraction of remaining distance covered per second */
-#define CURSOR_SPRING_RATE  (14.0f)
+#define CURSOR_SPRING_RATE  (7.0f)
 
 /* Marquee state — persists across draw calls so the scroll is continuous */
 static float    s_mq_offset      = 0.0f;
