@@ -46,6 +46,10 @@ typedef struct {
     /** @brief Enable Background music */
     bool bgm_enabled;
 
+    /** @brief Pinned BGM track filename (basename with extension, e.g. "song.mp3").
+     *         Empty string means shuffle mode. */
+    char *bgm_track_name;
+
     /** @brief Enable Sound effects within the menu */
     bool soundfx_enabled;
 

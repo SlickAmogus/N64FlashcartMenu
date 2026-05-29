@@ -12,12 +12,11 @@
 #include "mp3_player.h"
 #include "sound.h"
 
-#define MAX_BGM_FILES   50
-
-static char *bgm_files[MAX_BGM_FILES];
-static int bgm_order[MAX_BGM_FILES];
+static char *bgm_files[BGM_MAX_FILES];
+static int bgm_order[BGM_MAX_FILES];
 static int bgm_file_count = 0;
 static int bgm_current_index = 0;
+static int bgm_track_index = -1;   /* -1 = shuffle, >=0 = pinned track */
 
 static bool bgm_enabled = false;
 static bool bgm_active = false;    /* mp3player is initialised and playing */
@@ -38,6 +37,23 @@ static void bgm_play_track(void) {
         return;
     }
 
+    /* Pinned track: play exactly that file, no fallback cycling */
+    if (bgm_track_index >= 0 && bgm_track_index < bgm_file_count) {
+        if (mp3player_init() == MP3PLAYER_OK) {
+            if (mp3player_load(bgm_files[bgm_track_index]) == MP3PLAYER_OK) {
+                sound_init_mp3_playback();
+                if (mp3player_play() == MP3PLAYER_OK) {
+                    bgm_active = true;
+                    return;
+                }
+            }
+            mp3player_deinit();
+        }
+        bgm_active = false;
+        return;
+    }
+
+    /* Shuffle: try each track in order until one plays */
     for (int tries = 0; tries < bgm_file_count; tries++) {
         char *path = bgm_files[bgm_order[bgm_current_index]];
 
@@ -79,7 +95,7 @@ void bgm_init(const char *music_dir) {
         if (dir.d_type != DT_REG) {
             continue;
         }
-        if (bgm_file_count >= MAX_BGM_FILES) {
+        if (bgm_file_count >= BGM_MAX_FILES) {
             break;
         }
         char *dot = strrchr(dir.d_name, '.');
@@ -96,6 +112,45 @@ void bgm_init(const char *music_dir) {
         srand((unsigned int) timer_ticks());
         bgm_shuffle();
     }
+}
+
+int bgm_get_file_count(void) {
+    return bgm_file_count;
+}
+
+const char *bgm_get_basename(int index) {
+    if (index < 0 || index >= bgm_file_count) return NULL;
+    const char *path = bgm_files[index];
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+void bgm_set_track(int index) {
+    bgm_track_index = (index >= 0 && index < bgm_file_count) ? index : -1;
+    if (bgm_enabled && bgm_active) {
+        mp3player_deinit();
+        bgm_active = false;
+        /* bgm_process will restart with new selection */
+    }
+}
+
+int bgm_get_current_track(void) {
+    return bgm_track_index;
+}
+
+void bgm_set_track_by_name(const char *name) {
+    if (!name || name[0] == '\0') {
+        bgm_track_index = -1;
+        return;
+    }
+    for (int i = 0; i < bgm_file_count; i++) {
+        const char *base = bgm_get_basename(i);
+        if (base && strcasecmp(base, name) == 0) {
+            bgm_track_index = i;
+            return;
+        }
+    }
+    bgm_track_index = -1;
 }
 
 void bgm_deinit(void) {
@@ -146,10 +201,14 @@ void bgm_process(void) {
         if (err != MP3PLAYER_OK || mp3player_is_finished()) {
             mp3player_deinit();
             bgm_active = false;
-            bgm_current_index = (bgm_current_index + 1) % bgm_file_count;
-            if (bgm_current_index == 0) {
-                bgm_shuffle();
+            if (bgm_track_index < 0) {
+                /* Shuffle: advance to next track */
+                bgm_current_index = (bgm_current_index + 1) % bgm_file_count;
+                if (bgm_current_index == 0) {
+                    bgm_shuffle();
+                }
             }
+            /* Pinned track: bgm_play_track will restart the same file */
             bgm_play_track();
         }
     } else {

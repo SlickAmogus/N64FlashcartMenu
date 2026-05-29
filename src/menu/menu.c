@@ -106,6 +106,7 @@ static void menu_init (boot_params_t *boot_params) {
     /* Initialise BGM playlist from SD card music folder */
     path_push(path, "music");
     bgm_init(path_get(path));
+    bgm_set_track_by_name(menu->settings.bgm_track_name);
     path_pop(path);
   
     if (menu->settings.pal60_compatibility_mode) { // hardware VI mods that dont really understand the output

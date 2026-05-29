@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 #include "../bg_slideshow.h"
 #include "../bgm.h"
 #include "../fonts.h"
@@ -99,6 +100,25 @@ static void set_bgm_enabled_type (menu_t *menu, void *arg) {
     menu->settings.bgm_enabled = (bool)(uintptr_t)(arg);
     bgm_set_enabled(menu->settings.bgm_enabled);
     settings_save(&menu->settings);
+}
+
+static void set_bgm_track_type (menu_t *menu, void *arg) {
+    int idx = (int)(intptr_t)arg;
+    bgm_set_track(idx);
+    if (menu->settings.bgm_track_name) free(menu->settings.bgm_track_name);
+    if (idx < 0) {
+        menu->settings.bgm_track_name = strdup("");
+    } else {
+        const char *name = bgm_get_basename(idx);
+        menu->settings.bgm_track_name = strdup(name ? name : "");
+    }
+    settings_save(&menu->settings);
+}
+
+static int get_bgm_track_current_selection (menu_t *menu) {
+    int track = bgm_get_current_track();
+    if (track < 0) return 0;
+    return track + 1;  /* 0 = Shuffle; files start at 1 */
 }
 
 static void set_bg_rotation_interval_type (menu_t *menu, void *arg) {
@@ -433,10 +453,50 @@ static component_context_menu_t set_rumble_enabled_type_context_menu = {
 }};
 #endif
 
+/* ---- BGM track dynamic context menu -------------------------------- */
+/* Layout must match the anonymous list-entry struct in component_context_menu_t */
+typedef struct {
+    const char               *text;
+    void                    (*action)(menu_t *menu, void *arg);
+    void                     *arg;
+    component_context_menu_t *submenu;
+} bgm_item_t;
+
+/* +2: one "Shuffle" entry + one NULL terminator */
+#define BGM_TRACK_MENU_CAP  (BGM_MAX_FILES + 2)
+
+static struct {
+    int                       row_count;
+    int                       row_selected;
+    bool                      hide_pending;
+    component_context_menu_t *parent;
+    component_context_menu_t *submenu;
+    int                     (*get_default_selection)(menu_t *menu);
+    bgm_item_t                list[BGM_TRACK_MENU_CAP];
+} s_bgm_track_storage;
+
+static component_context_menu_t *s_bgm_track_menu =
+    (component_context_menu_t *)&s_bgm_track_storage;
+
+static const char *format_bgm_track (menu_t *menu) {
+    if (!menu->settings.bgm_track_name || menu->settings.bgm_track_name[0] == '\0') {
+        return "Shuffle";
+    }
+    /* Strip .mp3 extension for display */
+    static char disp[64];
+    strncpy(disp, menu->settings.bgm_track_name, sizeof(disp) - 1);
+    disp[sizeof(disp) - 1] = '\0';
+    char *dot = strrchr(disp, '.');
+    if (dot) *dot = '\0';
+    return disp;
+}
+/* -------------------------------------------------------------------- */
+
 static component_context_menu_t options_context_menu = { .list = {
     { .text = "Show Hidden Files", .submenu = &set_protected_entries_type_context_menu },
     { .text = "Sound Effects", .submenu = &set_soundfx_enabled_type_context_menu },
     { .text = "Background Music", .submenu = &set_bgm_enabled_type_context_menu },
+    { .text = "BGM Track", .submenu = NULL },  /* wired at view_settings_init */
     { .text = "Animated Background", .submenu = &set_use_animated_backgrounds_context_menu },
     { .text = "BG Image Rotation", .submenu = &set_bg_rotation_interval_context_menu },
     { .text = "Screensaver", .submenu = &set_screensaver_enabled_context_menu },
@@ -512,6 +572,7 @@ static void draw (menu_t *menu, surface_t *d) {
         "     Show Hidden Files : %s\n"
         "     Sound Effects     : %s\n"
         "     Background Music  : %s\n"
+        "     BGM Track         : %s\n"
         "     Animated BG       : %s\n"
         "     BG Image Rotation : %s\n"
         "     Screensaver       : %s\n"
@@ -541,6 +602,7 @@ static void draw (menu_t *menu, surface_t *d) {
         format_switch(menu->settings.show_protected_entries),
         format_switch(menu->settings.soundfx_enabled),
         format_switch(menu->settings.bgm_enabled),
+        format_bgm_track(menu),
         format_switch(menu->settings.use_animated_backgrounds),
         format_bg_interval(menu->settings.bg_rotation_interval_secs),
         format_switch(menu->settings.screensaver_enabled),
@@ -593,8 +655,30 @@ static void draw (menu_t *menu, surface_t *d) {
 
 
 void view_settings_init (menu_t *menu) {
-    ui_components_context_menu_init(&options_context_menu);
+    /* Build the BGM track dynamic context menu */
+    memset(&s_bgm_track_storage, 0, sizeof(s_bgm_track_storage));
+    s_bgm_track_storage.list[0].text   = "Shuffle";
+    s_bgm_track_storage.list[0].action = set_bgm_track_type;
+    s_bgm_track_storage.list[0].arg    = (void *)(intptr_t)(-1);
+    int n = bgm_get_file_count();
+    for (int i = 0; i < n && i + 1 < BGM_TRACK_MENU_CAP - 1; i++) {
+        s_bgm_track_storage.list[i + 1].text   = bgm_get_basename(i);
+        s_bgm_track_storage.list[i + 1].action = set_bgm_track_type;
+        s_bgm_track_storage.list[i + 1].arg    = (void *)(intptr_t)(i);
+    }
+    /* list[n+1] already NULL from memset — serves as terminator */
+    s_bgm_track_menu->get_default_selection = get_bgm_track_current_selection;
+    ui_components_context_menu_init(s_bgm_track_menu);
 
+    /* Wire the dynamic submenu into the options list */
+    for (int i = 0; options_context_menu.list[i].text != NULL; i++) {
+        if (strcmp(options_context_menu.list[i].text, "BGM Track") == 0) {
+            options_context_menu.list[i].submenu = s_bgm_track_menu;
+            break;
+        }
+    }
+
+    ui_components_context_menu_init(&options_context_menu);
 }
 
 void view_settings_display (menu_t *menu, surface_t *display) {

@@ -9,6 +9,9 @@
 
 #include <stdbool.h>
 
+/** Maximum number of MP3 files loaded from the music directory. */
+#define BGM_MAX_FILES   50
+
 /**
  * @brief Scan the music directory and prepare the shuffled playlist.
  *
@@ -18,6 +21,33 @@
  * @param music_dir Full path to the music directory (e.g. "sd:/menu/music").
  */
 void bgm_init(const char *music_dir);
+
+/** @brief Return the number of MP3 files found by bgm_init. */
+int bgm_get_file_count(void);
+
+/**
+ * @brief Return the basename (filename only, including extension) of the
+ *        file at @p index.  Returns NULL if index is out of range.  The
+ *        returned pointer is valid until bgm_deinit.
+ */
+const char *bgm_get_basename(int index);
+
+/**
+ * @brief Pin playback to a specific track.  Pass -1 to return to shuffle.
+ *        If BGM is currently playing the old track is stopped immediately;
+ *        bgm_process will start the new selection on the next call.
+ */
+void bgm_set_track(int index);
+
+/** @brief Return the currently pinned track index, or -1 if in shuffle mode. */
+int bgm_get_current_track(void);
+
+/**
+ * @brief Pin playback by filename (basename with extension, e.g. "song.mp3").
+ *        Searches the loaded file list case-insensitively.  Falls back to
+ *        shuffle if the name is NULL, empty, or not found.
+ */
+void bgm_set_track_by_name(const char *name);
 
 /**
  * @brief Stop playback and free all BGM resources.

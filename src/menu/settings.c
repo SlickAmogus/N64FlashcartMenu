@@ -31,6 +31,7 @@ static settings_t init = {
     .show_browser_file_extensions = true,
     .show_browser_rom_tags = true,
     .bgm_enabled = true,
+    .bgm_track_name = "",
     .rumble_enabled = false,
     .bg_rotation_interval_secs = 60,
     .use_animated_backgrounds = true,
@@ -67,6 +68,7 @@ void settings_load (settings_t *settings) {
     settings->show_saves_folder = mini_get_bool(ini, "menu", "show_saves_folder", init.show_saves_folder);
     settings->soundfx_enabled = mini_get_bool(ini, "menu", "soundfx_enabled", init.soundfx_enabled);
     settings->bgm_enabled = mini_get_bool(ini, "menu", "bgm_enabled", init.bgm_enabled);
+    settings->bgm_track_name = strdup(mini_get_string(ini, "menu", "bgm_track_name", init.bgm_track_name));
     settings->bg_rotation_interval_secs = mini_get_int(ini, "menu", "bg_rotation_interval_secs", init.bg_rotation_interval_secs);
     settings->use_animated_backgrounds = mini_get_bool(ini, "menu", "use_animated_backgrounds", init.use_animated_backgrounds);
     settings->screensaver_enabled = mini_get_bool(ini, "menu", "screensaver_enabled", init.screensaver_enabled);
@@ -105,6 +107,7 @@ void settings_save (settings_t *settings) {
     mini_set_bool(ini, "menu", "show_saves_folder", settings->show_saves_folder);
     mini_set_bool(ini, "menu", "soundfx_enabled", settings->soundfx_enabled);
     mini_set_bool(ini, "menu", "bgm_enabled", settings->bgm_enabled);
+    mini_set_string(ini, "menu", "bgm_track_name", settings->bgm_track_name ? settings->bgm_track_name : "");
     mini_set_int(ini, "menu", "bg_rotation_interval_secs", settings->bg_rotation_interval_secs);
     mini_set_bool(ini, "menu", "use_animated_backgrounds", settings->use_animated_backgrounds);
     mini_set_bool(ini, "menu", "screensaver_enabled", settings->screensaver_enabled);
