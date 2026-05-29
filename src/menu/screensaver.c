@@ -31,6 +31,18 @@
 
 #define BOUNCER_SPEED_PXMS      (0.08f)
 
+/* ---- Sky / clouds ---- */
+#define SKY_CLOUD_IMAGES    3   /* PNG files: cloud1.png .. cloud3.png */
+#define SKY_CLOUD_COUNT     6   /* instances (reuse images) */
+
+typedef struct { float x, y, speed; int img; } cloud_t;
+
+static surface_t *cloud_surfaces[SKY_CLOUD_IMAGES];
+static int        cloud_surf_count = 0;
+static cloud_t    clouds[SKY_CLOUD_COUNT];
+static bool       clouds_ready    = false;
+static uint32_t   cloud_last_ms   = 0;
+
 /* ---- Starfield ---- */
 #define STAR_COUNT      240
 #define STAR_FAST_N     80      /* bright white,  fastest */
@@ -136,7 +148,68 @@ static color_t get_bg_color (int bg) {
         case SCREENSAVER_BG_PURPLE:   return RGBA32(32,  0,  64, 255);
         case SCREENSAVER_BG_RED:      return RGBA32(64,  0,   0, 255);
         case SCREENSAVER_BG_GREEN:    return RGBA32(0,  48,   0, 255);
+        case SCREENSAVER_BG_SKY:      return RGBA32(120, 190, 220, 255);
         default:                      return RGBA32(0,   0,   0, 255);
+    }
+}
+
+/* ---- Cloud advance / draw ----------------------------------------- */
+
+static void init_clouds (void) {
+    /* Speed tiers: fast/medium/slow, 2 instances each */
+    static const float speeds[SKY_CLOUD_COUNT] = {
+        0.020f, 0.018f,  /* fast   */
+        0.012f, 0.010f,  /* medium */
+        0.007f, 0.005f,  /* slow   */
+    };
+    int n = cloud_surf_count > 0 ? cloud_surf_count : 1;
+    for (int i = 0; i < SKY_CLOUD_COUNT; i++) {
+        clouds[i].x     = (float)(rand() % DISPLAY_WIDTH);
+        clouds[i].y     = (float)(rand() % (DISPLAY_HEIGHT * 3 / 5));
+        clouds[i].speed = speeds[i];
+        clouds[i].img   = i % n;
+    }
+    clouds_ready  = true;
+    cloud_last_ms = 0;
+}
+
+static void advance_clouds (uint32_t now_ms) {
+    if (!clouds_ready) {
+        init_clouds();
+        cloud_last_ms = now_ms;
+        return;
+    }
+    uint32_t dt = (cloud_last_ms == 0) ? 16 : (now_ms - cloud_last_ms);
+    if (dt > 100) dt = 100;
+    cloud_last_ms = now_ms;
+
+    for (int i = 0; i < SKY_CLOUD_COUNT; i++) {
+        if (cloud_surf_count == 0) break;
+        surface_t *surf = cloud_surfaces[clouds[i].img];
+        int cw = surf ? surf->width : 128;
+
+        clouds[i].x -= clouds[i].speed * (float)dt;
+        if (clouds[i].x + (float)cw < 0.0f) {
+            clouds[i].x = (float)DISPLAY_WIDTH + (float)(rand() % 80);
+            clouds[i].y = (float)(rand() % (DISPLAY_HEIGHT * 3 / 5));
+        }
+    }
+}
+
+static void draw_surface_at (surface_t *surf, int x, int y) {
+    rdpq_mode_push();
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+        rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)));
+        rdpq_tex_blit(surf, x, y, NULL);
+    rdpq_mode_pop();
+}
+
+static void draw_clouds (void) {
+    for (int i = 0; i < SKY_CLOUD_COUNT; i++) {
+        if (clouds[i].img >= cloud_surf_count) continue;
+        surface_t *surf = cloud_surfaces[clouds[i].img];
+        if (surf) draw_surface_at(surf, (int)clouds[i].x, (int)clouds[i].y);
     }
 }
 
@@ -145,6 +218,10 @@ void screensaver_set_bg (int bg) {
     current_bg = bg;
     if (bg == SCREENSAVER_BG_STARFIELD && !stars_ready) {
         init_stars();
+    }
+    if (bg == SCREENSAVER_BG_SKY) {
+        clouds_ready  = false;
+        cloud_last_ms = 0;
     }
 }
 
@@ -224,6 +301,24 @@ void screensaver_init (const char *image_dir, const char *text) {
 
     screensaver_set_text(text);
 
+    /* Load cloud images for the Sky background */
+    cloud_surf_count = 0;
+    if (image_dir && image_dir[0]) {
+        char buf[300];
+        for (int ci = 0; ci < SKY_CLOUD_IMAGES; ci++) {
+            snprintf(buf, sizeof(buf), "%s/cloud%d.png", image_dir, ci + 1);
+            apng_image_t *a = apng_load(buf, MAX_BOUNCER_PNG_W, MAX_BOUNCER_PNG_H);
+            if (a && a->frame_count > 0 && a->frames[0].frame) {
+                cloud_surfaces[cloud_surf_count] = a->frames[0].frame;
+                a->frames[0].frame = NULL;
+                apng_free(a);
+                cloud_surf_count++;
+            } else if (a) {
+                apng_free(a);
+            }
+        }
+    }
+
     if (image_dir && image_dir[0]) {
         char buf[300];
         /* 1) Try APNG */
@@ -283,6 +378,16 @@ void screensaver_deinit (void) {
     }
     gif_frame_idx = 0;
     gif_last_ms   = 0;
+    for (int i = 0; i < cloud_surf_count; i++) {
+        if (cloud_surfaces[i]) {
+            surface_free(cloud_surfaces[i]);
+            free(cloud_surfaces[i]);
+            cloud_surfaces[i] = NULL;
+        }
+    }
+    cloud_surf_count = 0;
+    clouds_ready     = false;
+    cloud_last_ms    = 0;
 }
 
 void screensaver_set_text (const char *text) {
@@ -383,6 +488,9 @@ void screensaver_draw (surface_t *display) {
     if (current_bg == SCREENSAVER_BG_STARFIELD) {
         advance_stars(now_ms);
         draw_stars();
+    } else if (current_bg == SCREENSAVER_BG_SKY) {
+        advance_clouds(now_ms);
+        draw_clouds();
     }
 
     if (active) {
