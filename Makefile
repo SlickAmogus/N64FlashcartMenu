@@ -52,6 +52,7 @@ SRCS = \
 	menu/menu.c \
 	menu/mp3_player.c \
 	menu/path.c \
+	menu/apng_decoder.c \
 	menu/gif_decoder.c \
 	menu/png_decoder.c \
 	menu/rom_info.c \

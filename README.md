@@ -14,7 +14,7 @@ A customized fork of [N64FlashcartMenu](https://github.com/Polprzewodnikowy/N64F
 | **Custom sound effects** | Loads `.wav64` files from `/menu/effects/` for cursor / enter / back / error / settings clicks. Falls back to ROM sounds when missing. |
 | **Background slideshow** | Rotates `.png` files from `/menu/backgrounds/` at a configurable interval (Off / 30s / 1 min / 2 min / 5 min). Up to 400 PNGs, shuffled. PNGs up to 1280×1024 accepted. |
 | **Animated MPEG1 background** | A single `.m1v` video in `/menu/backgrounds/` loops as the background. Takes priority over PNGs; toggleable in-menu. |
-| **Screensaver** | After a configurable idle timeout, the browser dims to a bouncing element (DVD-style) to protect CRTs. Any button press wakes it; the wake press is swallowed. |
+| **Screensaver** | After a configurable idle timeout, a bouncing element (DVD-style) protects CRTs. Supports animated **APNG** or **GIF** as the bouncer, with full transparency. Background can be solid black, a colour tint, or a scrolling **starfield**. Any button press wakes it; the wake press is swallowed. |
 | **Marquee scroll** | Long file/ROM names that would normally be truncated now smoothly scroll when selected. No config needed. |
 | **Configurable text color** | Main text color is set in **Settings → Text Color** (White / Yellow / Cyan / Green / Red / Orange / Pink / Amber). Takes effect immediately. |
 
@@ -29,12 +29,17 @@ SD card root/
     ├── music/            ← .mp3 files (BGM, shuffled)
     ├── effects/          ← cursor.wav64, enter.wav64, back.wav64, error.wav64, settings.wav64
     ├── backgrounds/      ← .png files OR a single .m1v video
-    └── screensaver/      ← bouncer.png (optional — falls back to animated text)
+    └── screensaver/      ← bouncer.apng / bouncer.gif / bouncer.png (optional)
 ```
 
 All folders are optional — anything missing just disables that feature.
 
-> **Screensaver image:** place any PNG (up to 320×240) at `/menu/screensaver/bouncer.png`. It will bounce around the screen. Without it, a colored text label bounces and cycles color on each edge hit.
+> **Screensaver bouncer:** place an animated image in `/menu/screensaver/`. Priority order:
+> 1. `bouncer.apng` — animated PNG with full RGBA color and smooth transparency (recommended)
+> 2. `bouncer.gif` — animated GIF with transparency support (up to 32 frames)
+> 3. `bouncer.png` — static PNG, loaded asynchronously
+>
+> All formats are capped at 320×240. Without any image, a colored text label bounces and cycles color on each edge hit. Keep animated frames small (64×64 is typical) — each frame lives in N64 RDRAM.
 
 ---
 
@@ -48,6 +53,7 @@ All folders are optional — anything missing just disables that feature.
 | Animated Backgrounds | On | When On, a `.m1v` in `/menu/backgrounds/` plays instead of the PNG slideshow. |
 | Screensaver | On | Toggle the screensaver on/off. |
 | Screensaver Timeout | 5 min | 1 / 5 / 10 / 30 min, or Off. |
+| Screensaver BG | Black | Black / Navy / Cyan / Purple / Red / Green / **Starfield** (scrolling star layers). |
 | Text Color | White | White / Yellow / Cyan / Green / Red / Orange / Pink / Amber. Applies immediately. |
 
 ---

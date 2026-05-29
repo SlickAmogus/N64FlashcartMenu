@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "apng_decoder.h"
 #include "gif_decoder.h"
 #include "screensaver.h"
 #include "fonts.h"
@@ -59,6 +60,10 @@ static surface_t *bouncer_image = NULL;
 static char *pending_image_path = NULL;
 static bool image_decoding = false;
 static bool image_pending = false;
+
+static apng_image_t *bouncer_apng     = NULL;
+static int           apng_frame_idx  = 0;
+static uint32_t      apng_last_ms    = 0;
 
 static gif_image_t *bouncer_gif      = NULL;
 static int          gif_frame_idx    = 0;
@@ -148,7 +153,10 @@ static float random_velocity_component (void) {
 }
 
 static void recompute_dimensions (void) {
-    if (bouncer_gif && bouncer_gif->frame_count > 0 && bouncer_gif->frames[0].frame) {
+    if (bouncer_apng && bouncer_apng->frame_count > 0 && bouncer_apng->frames[0].frame) {
+        bouncer_w = bouncer_apng->frames[0].frame->width;
+        bouncer_h = bouncer_apng->frames[0].frame->height;
+    } else if (bouncer_gif && bouncer_gif->frame_count > 0 && bouncer_gif->frames[0].frame) {
         bouncer_w = bouncer_gif->frames[0].frame->width;
         bouncer_h = bouncer_gif->frames[0].frame->height;
     } else if (bouncer_image && bouncer_image->width > 0 && bouncer_image->height > 0) {
@@ -217,20 +225,29 @@ void screensaver_init (const char *image_dir, const char *text) {
     screensaver_set_text(text);
 
     if (image_dir && image_dir[0]) {
-        /* Try animated GIF first */
         char buf[300];
-        snprintf(buf, sizeof(buf), "%s/bouncer.gif", image_dir);
-        bouncer_gif = gif_load(buf, MAX_BOUNCER_PNG_W, MAX_BOUNCER_PNG_H);
-        if (bouncer_gif) {
-            gif_frame_idx = 0;
-            gif_last_ms   = 0;
+        /* 1) Try APNG */
+        snprintf(buf, sizeof(buf), "%s/bouncer.apng", image_dir);
+        bouncer_apng = apng_load(buf, MAX_BOUNCER_PNG_W, MAX_BOUNCER_PNG_H);
+        if (bouncer_apng) {
+            apng_frame_idx = 0;
+            apng_last_ms   = 0;
             recompute_dimensions();
         } else {
-            /* Fall back to PNG (loaded asynchronously) */
-            snprintf(buf, sizeof(buf), "%s/bouncer.png", image_dir);
-            if (pending_image_path) free(pending_image_path);
-            pending_image_path = strdup(buf);
-            try_start_image_load();
+            /* 2) Try animated GIF */
+            snprintf(buf, sizeof(buf), "%s/bouncer.gif", image_dir);
+            bouncer_gif = gif_load(buf, MAX_BOUNCER_PNG_W, MAX_BOUNCER_PNG_H);
+            if (bouncer_gif) {
+                gif_frame_idx = 0;
+                gif_last_ms   = 0;
+                recompute_dimensions();
+            } else {
+                /* 3) Fall back to static PNG (loaded asynchronously) */
+                snprintf(buf, sizeof(buf), "%s/bouncer.png", image_dir);
+                if (pending_image_path) free(pending_image_path);
+                pending_image_path = strdup(buf);
+                try_start_image_load();
+            }
         }
     }
 }
@@ -254,6 +271,12 @@ void screensaver_deinit (void) {
     image_pending  = false;
     stars_ready    = false;
     current_bg     = SCREENSAVER_BG_BLACK;
+    if (bouncer_apng) {
+        apng_free(bouncer_apng);
+        bouncer_apng = NULL;
+    }
+    apng_frame_idx = 0;
+    apng_last_ms   = 0;
     if (bouncer_gif) {
         gif_free(bouncer_gif);
         bouncer_gif = NULL;
@@ -285,10 +308,12 @@ void screensaver_set_active (bool a) {
         pos_y = (float)(rand() % (max_y > 0 ? max_y : 1));
         vel_x = random_velocity_component();
         vel_y = random_velocity_component();
-        tint_index    = rand() % BOUNCER_STYLE_COUNT;
-        last_frame_ms = get_ticks_ms();
-        gif_frame_idx = 0;
-        gif_last_ms   = 0;
+        tint_index     = rand() % BOUNCER_STYLE_COUNT;
+        last_frame_ms  = get_ticks_ms();
+        apng_frame_idx = 0;
+        apng_last_ms   = 0;
+        gif_frame_idx  = 0;
+        gif_last_ms    = 0;
     }
     active = a;
 }
@@ -362,7 +387,16 @@ void screensaver_draw (surface_t *display) {
 
     if (active) {
         advance_bouncer(now_ms);
-        if (bouncer_gif) {
+        if (bouncer_apng) {
+            /* Advance APNG animation frame */
+            if (apng_last_ms == 0) {
+                apng_last_ms = now_ms;
+            } else if (now_ms - apng_last_ms >= bouncer_apng->frames[apng_frame_idx].delay_ms) {
+                apng_frame_idx = (apng_frame_idx + 1) % bouncer_apng->frame_count;
+                apng_last_ms   = now_ms;
+            }
+            draw_bouncer_surface(bouncer_apng->frames[apng_frame_idx].frame);
+        } else if (bouncer_gif) {
             /* Advance GIF animation frame */
             if (gif_last_ms == 0) {
                 gif_last_ms = now_ms;
