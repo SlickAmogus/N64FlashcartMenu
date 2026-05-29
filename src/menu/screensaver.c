@@ -5,9 +5,11 @@
  */
 
 #include <libdragon.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "gif_decoder.h"
 #include "screensaver.h"
 #include "fonts.h"
 #include "png_decoder.h"
@@ -29,10 +31,10 @@
 #define BOUNCER_SPEED_PXMS      (0.08f)
 
 /* ---- Starfield ---- */
-#define STAR_COUNT      120
-#define STAR_FAST_N     40      /* bright white,  fastest */
-#define STAR_MED_N      40      /* light grey, medium */
-#define STAR_SLOW_N     40      /* dim grey,   slowest */
+#define STAR_COUNT      240
+#define STAR_FAST_N     80      /* bright white,  fastest */
+#define STAR_MED_N      80      /* light grey, medium */
+#define STAR_SLOW_N     80      /* dim grey,   slowest */
 #define STAR_FAST_SPD   0.060f  /* px/ms */
 #define STAR_MED_SPD    0.030f
 #define STAR_SLOW_SPD   0.012f
@@ -57,6 +59,10 @@ static surface_t *bouncer_image = NULL;
 static char *pending_image_path = NULL;
 static bool image_decoding = false;
 static bool image_pending = false;
+
+static gif_image_t *bouncer_gif      = NULL;
+static int          gif_frame_idx    = 0;
+static uint32_t     gif_last_ms      = 0;
 
 static int bouncer_w = 0;
 static int bouncer_h = 0;
@@ -142,7 +148,10 @@ static float random_velocity_component (void) {
 }
 
 static void recompute_dimensions (void) {
-    if (bouncer_image && bouncer_image->width > 0 && bouncer_image->height > 0) {
+    if (bouncer_gif && bouncer_gif->frame_count > 0 && bouncer_gif->frames[0].frame) {
+        bouncer_w = bouncer_gif->frames[0].frame->width;
+        bouncer_h = bouncer_gif->frames[0].frame->height;
+    } else if (bouncer_image && bouncer_image->width > 0 && bouncer_image->height > 0) {
         bouncer_w = bouncer_image->width;
         bouncer_h = bouncer_image->height;
     } else {
@@ -196,23 +205,33 @@ static void try_start_image_load (void) {
 }
 
 
-void screensaver_init (const char *image_path, const char *text) {
-    active = false;
-    pos_x = 0.0f;
-    pos_y = 0.0f;
-    vel_x = BOUNCER_SPEED_PXMS;
-    vel_y = BOUNCER_SPEED_PXMS;
-    tint_index = 0;
+void screensaver_init (const char *image_dir, const char *text) {
+    active        = false;
+    pos_x         = 0.0f;
+    pos_y         = 0.0f;
+    vel_x         = BOUNCER_SPEED_PXMS;
+    vel_y         = BOUNCER_SPEED_PXMS;
+    tint_index    = 0;
     last_frame_ms = 0;
 
     screensaver_set_text(text);
 
-    if (image_path && image_path[0]) {
-        if (pending_image_path) free(pending_image_path);
-        pending_image_path = strdup(image_path);
-        /* png_decoder_start returns PNG_ERR_NO_FILE if the file is missing,
-         * which we treat as a permanent failure and silently fall back to text. */
-        try_start_image_load();
+    if (image_dir && image_dir[0]) {
+        /* Try animated GIF first */
+        char buf[300];
+        snprintf(buf, sizeof(buf), "%s/bouncer.gif", image_dir);
+        bouncer_gif = gif_load(buf, MAX_BOUNCER_PNG_W, MAX_BOUNCER_PNG_H);
+        if (bouncer_gif) {
+            gif_frame_idx = 0;
+            gif_last_ms   = 0;
+            recompute_dimensions();
+        } else {
+            /* Fall back to PNG (loaded asynchronously) */
+            snprintf(buf, sizeof(buf), "%s/bouncer.png", image_dir);
+            if (pending_image_path) free(pending_image_path);
+            pending_image_path = strdup(buf);
+            try_start_image_load();
+        }
     }
 }
 
@@ -235,6 +254,12 @@ void screensaver_deinit (void) {
     image_pending  = false;
     stars_ready    = false;
     current_bg     = SCREENSAVER_BG_BLACK;
+    if (bouncer_gif) {
+        gif_free(bouncer_gif);
+        bouncer_gif = NULL;
+    }
+    gif_frame_idx = 0;
+    gif_last_ms   = 0;
 }
 
 void screensaver_set_text (const char *text) {
@@ -260,8 +285,10 @@ void screensaver_set_active (bool a) {
         pos_y = (float)(rand() % (max_y > 0 ? max_y : 1));
         vel_x = random_velocity_component();
         vel_y = random_velocity_component();
-        tint_index = rand() % BOUNCER_STYLE_COUNT;
+        tint_index    = rand() % BOUNCER_STYLE_COUNT;
         last_frame_ms = get_ticks_ms();
+        gif_frame_idx = 0;
+        gif_last_ms   = 0;
     }
     active = a;
 }
@@ -298,12 +325,13 @@ static void advance_bouncer (uint32_t now_ms) {
     }
 }
 
-static void draw_bouncer_image (void) {
+static void draw_bouncer_surface (surface_t *surf) {
     rdpq_mode_push();
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER_TEX);
-        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-        rdpq_tex_blit(bouncer_image, (int)pos_x, (int)pos_y, NULL);
+        /* Standard alpha-over: src_rgb * src_alpha + dst_rgb * (1-src_alpha) */
+        rdpq_mode_blender(RDPQ_BLENDER(IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+        rdpq_tex_blit(surf, (int)pos_x, (int)pos_y, NULL);
     rdpq_mode_pop();
 }
 
@@ -334,8 +362,17 @@ void screensaver_draw (surface_t *display) {
 
     if (active) {
         advance_bouncer(now_ms);
-        if (bouncer_image) {
-            draw_bouncer_image();
+        if (bouncer_gif) {
+            /* Advance GIF animation frame */
+            if (gif_last_ms == 0) {
+                gif_last_ms = now_ms;
+            } else if (now_ms - gif_last_ms >= bouncer_gif->frames[gif_frame_idx].delay_ms) {
+                gif_frame_idx = (gif_frame_idx + 1) % bouncer_gif->frame_count;
+                gif_last_ms   = now_ms;
+            }
+            draw_bouncer_surface(bouncer_gif->frames[gif_frame_idx].frame);
+        } else if (bouncer_image) {
+            draw_bouncer_surface(bouncer_image);
         } else {
             draw_bouncer_text();
         }

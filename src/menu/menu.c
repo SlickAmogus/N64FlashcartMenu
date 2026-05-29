@@ -148,10 +148,8 @@ static void menu_init (boot_params_t *boot_params) {
     path_pop(path);
 
     path_push(path, "screensaver");
-    path_push(path, "bouncer.png");
     screensaver_init(path_get(path), menu->settings.screensaver_text);
     screensaver_set_bg(menu->settings.screensaver_bg);
-    path_pop(path);
     path_pop(path);
 
     path_free(path);
@@ -285,7 +283,17 @@ void menu_run (boot_params_t *boot_params) {
                 last_input_ms = get_ticks_ms();
             }
 
-            bool screensaver_eligible = (menu->mode == MENU_MODE_BROWSER);
+            bool screensaver_eligible = (
+                menu->mode != MENU_MODE_NONE         &&
+                menu->mode != MENU_MODE_STARTUP      &&
+                menu->mode != MENU_MODE_BOOT         &&
+                menu->mode != MENU_MODE_LOAD_ROM     &&
+                menu->mode != MENU_MODE_LOAD_DISK    &&
+                menu->mode != MENU_MODE_LOAD_EMULATOR &&
+                menu->mode != MENU_MODE_EXTRACT_FILE &&
+                menu->mode != MENU_MODE_ERROR        &&
+                menu->mode != MENU_MODE_FAULT
+            );
             bool should_be_active =
                 screensaver_eligible
                 && menu->settings.screensaver_enabled

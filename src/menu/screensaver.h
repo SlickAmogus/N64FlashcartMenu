@@ -23,12 +23,12 @@
 /**
  * @brief Initialize the screensaver.
  *
- * Sets the fallback text label and (asynchronously) attempts to load
- * @p image_path as a PNG.  Either argument may be NULL; if @p text is NULL
- * a default label is used, and if @p image_path is NULL no image load is
- * attempted.  Image dimensions are capped to keep the working buffer small.
+ * Looks for @c bouncer.gif (animated, loaded synchronously) then
+ * @c bouncer.png (static, loaded asynchronously) inside @p image_dir.
+ * Either argument may be NULL.  If @p text is NULL a default label is used.
+ * Image dimensions are capped to keep the working buffer small.
  */
-void screensaver_init (const char *image_path, const char *text);
+void screensaver_init (const char *image_dir, const char *text);
 
 void screensaver_deinit (void);
 
