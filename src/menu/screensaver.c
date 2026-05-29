@@ -330,7 +330,7 @@ static void draw_bouncer_surface (surface_t *surf) {
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER_TEX);
         /* Standard alpha-over: src_rgb * src_alpha + dst_rgb * (1-src_alpha) */
-        rdpq_mode_blender(RDPQ_BLENDER(IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+        rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)));
         rdpq_tex_blit(surf, (int)pos_x, (int)pos_y, NULL);
     rdpq_mode_pop();
 }
