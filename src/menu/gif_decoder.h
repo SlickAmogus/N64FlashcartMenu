@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 /** Maximum animation frames loaded from a single GIF file. */
-#define GIF_MAX_FRAMES  8
+#define GIF_MAX_FRAMES  32
 
 typedef struct {
     surface_t *frame;     /**< Decoded RGBA16 surface (heap-allocated). */
