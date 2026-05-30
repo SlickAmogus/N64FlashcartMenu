@@ -148,7 +148,7 @@ static color_t get_bg_color (int bg) {
         case SCREENSAVER_BG_PURPLE:   return RGBA32(32,  0,  64, 255);
         case SCREENSAVER_BG_RED:      return RGBA32(64,  0,   0, 255);
         case SCREENSAVER_BG_GREEN:    return RGBA32(0,  48,   0, 255);
-        case SCREENSAVER_BG_SKY:      return RGBA32(120, 190, 220, 255);
+        case SCREENSAVER_BG_SKY:      return RGBA32(55, 110, 160, 255);
         default:                      return RGBA32(0,   0,   0, 255);
     }
 }
@@ -162,10 +162,18 @@ static void init_clouds (void) {
         0.012f, 0.010f,  /* medium */
         0.007f, 0.005f,  /* slow   */
     };
+    /* Each tier gets its own vertical band so clouds don't clump at the top.
+     * Band height = (DISPLAY_HEIGHT * 3/5) / 3 = 96 pixels each. */
+    static const int y_band_min[SKY_CLOUD_COUNT] = {  0,   0,  96,  96, 192, 192 };
+    static const int y_band_max[SKY_CLOUD_COUNT] = { 96,  96, 192, 192, 288, 288 };
+
     int n = cloud_surf_count > 0 ? cloud_surf_count : 1;
+    /* Divide the screen width into equal slots so clouds start spread out. */
+    int slot_w = DISPLAY_WIDTH / SKY_CLOUD_COUNT;
     for (int i = 0; i < SKY_CLOUD_COUNT; i++) {
-        clouds[i].x     = (float)(rand() % DISPLAY_WIDTH);
-        clouds[i].y     = (float)(rand() % (DISPLAY_HEIGHT * 3 / 5));
+        int y_range = y_band_max[i] - y_band_min[i];
+        clouds[i].x     = (float)(i * slot_w + rand() % slot_w);
+        clouds[i].y     = (float)(y_band_min[i] + rand() % y_range);
         clouds[i].speed = speeds[i];
         clouds[i].img   = i % n;
     }
@@ -196,10 +204,13 @@ static void advance_clouds (uint32_t now_ms) {
     }
 }
 
+/* Draw a surface with a subtle cool-grey tint (TEX * ENV) to soften pure
+ * white clouds against the sky.  Alpha blending is preserved via TEX alpha. */
 static void draw_surface_at (surface_t *surf, int x, int y) {
     rdpq_mode_push();
         rdpq_set_mode_standard();
-        rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+        rdpq_set_env_color(RGBA32(205, 215, 225, 255));
+        rdpq_mode_combiner(RDPQ_COMBINER1((TEX0, 0, ENV, 0), (0, 0, 0, TEX0)));
         rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)));
         rdpq_tex_blit(surf, x, y, NULL);
     rdpq_mode_pop();

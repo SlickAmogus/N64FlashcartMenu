@@ -45,7 +45,7 @@ static const char *format_screensaver_bg (int bg) {
         case SCREENSAVER_BG_PURPLE:   return "Purple";
         case SCREENSAVER_BG_RED:      return "Red";
         case SCREENSAVER_BG_GREEN:    return "Green";
-        case SCREENSAVER_BG_STARFIELD: return "Starfield";
+        case SCREENSAVER_BG_STARFIELD: return "Stars";
         case SCREENSAVER_BG_SKY:      return "Sky";
         default:                      return "Black";
     }
@@ -286,7 +286,7 @@ static component_context_menu_t set_screensaver_bg_context_menu = {
         {.text = "Purple",    .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_PURPLE) },
         {.text = "Red",       .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_RED) },
         {.text = "Green",     .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_GREEN) },
-        {.text = "Starfield", .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_STARFIELD) },
+        {.text = "Stars",     .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_STARFIELD) },
         {.text = "Sky",       .action = set_screensaver_bg_type, .arg = (void *)(uintptr_t)(SCREENSAVER_BG_SKY) },
     COMPONENT_CONTEXT_MENU_LIST_END,
 }};
