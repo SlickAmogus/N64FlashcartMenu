@@ -11,6 +11,7 @@
 static bool show_extra_info_message = false;
 static component_boxart_t *boxart;
 static char *rom_filename = NULL;
+static char *rom_description_text = NULL;
 
 static int16_t current_metadata_image_index = 0;
 static const file_image_type_t metadata_image_filename_cache[] = {
@@ -93,10 +94,77 @@ static void scan_metadata_images(menu_t *menu) {
     metadata_images_scanned = true;
 }
 
-static const char *format_rom_description(menu_t *menu) {
-    char *rom_description = NULL;
+static void load_description (menu_t *menu) {
+    if (rom_description_text) {
+        free(rom_description_text);
+        rom_description_text = NULL;
+    }
 
-    return rom_description ? rom_description : "No description available.";
+    const char *gc = menu->load.rom_info.game_code;
+    path_t *path = path_init(menu->storage_prefix, "menu/metadata");
+    char sub[50];
+
+    if (gc[1] == 'E' && gc[2] == 'D') {
+        char safe_title[21];
+        memcpy(safe_title, menu->load.rom_info.title, 20);
+        safe_title[20] = '\0';
+        snprintf(sub, sizeof(sub), "homebrew/%s", safe_title);
+        path_push(path, sub);
+    } else {
+        /* Try region-specific (4-char) first, fall back to region-agnostic (3-char) */
+        snprintf(sub, sizeof(sub), "%c/%c/%c/%c", gc[0], gc[1], gc[2], gc[3]);
+        path_push(path, sub);
+        path_push(path, "description.txt");
+        if (!file_exists(path_get(path))) {
+            path_pop(path);
+            path_pop(path);
+            snprintf(sub, sizeof(sub), "%c/%c/%c", gc[0], gc[1], gc[2]);
+            path_push(path, sub);
+        } else {
+            /* 4-char description found — open it directly */
+            FILE *f = fopen(path_get(path), "r");
+            if (f) {
+                fseek(f, 0, SEEK_END);
+                long sz = ftell(f);
+                fseek(f, 0, SEEK_SET);
+                if (sz > 0 && sz <= 4096) {
+                    rom_description_text = malloc(sz + 1);
+                    if (rom_description_text) {
+                        size_t n = fread(rom_description_text, 1, sz, f);
+                        rom_description_text[n] = '\0';
+                    }
+                }
+                fclose(f);
+            }
+            path_free(path);
+            return;
+        }
+    }
+
+    path_push(path, "description.txt");
+    if (file_exists(path_get(path))) {
+        FILE *f = fopen(path_get(path), "r");
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            long sz = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            if (sz > 0 && sz <= 4096) {
+                rom_description_text = malloc(sz + 1);
+                if (rom_description_text) {
+                    size_t n = fread(rom_description_text, 1, sz, f);
+                    rom_description_text[n] = '\0';
+                }
+            }
+            fclose(f);
+        }
+    }
+
+    path_free(path);
+}
+
+static const char *format_rom_description(menu_t *menu) {
+    (void)menu;
+    return rom_description_text ? rom_description_text : "No description available.";
 }
 
 static char *convert_error_message (rom_err_t err) {
@@ -614,6 +682,11 @@ static void deinit (void) {
     current_metadata_image_index = 0;
     metadata_images_scanned = false;
 
+    if (rom_description_text) {
+        free(rom_description_text);
+        rom_description_text = NULL;
+    }
+
     // Clear availability cache
     for (uint16_t i = 0; i < metadata_image_filename_cache_length; i++) {
         metadata_image_available[i] = false;
@@ -658,6 +731,7 @@ void view_load_rom_init (menu_t *menu) {
     if (!menu->settings.rom_autoload_enabled) {
 #endif
         current_metadata_image_index = 0;
+        load_description(menu);
         boxart = ui_components_boxart_init(menu->storage_prefix, menu->load.rom_info.game_code, menu->load.rom_info.title, IMAGE_BOXART_FRONT);
         ui_components_context_menu_init(&options_context_menu);
 #ifdef FEATURE_AUTOLOAD_ROM_ENABLED
