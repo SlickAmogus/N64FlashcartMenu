@@ -110,38 +110,22 @@ static void load_description (menu_t *menu) {
         safe_title[20] = '\0';
         snprintf(sub, sizeof(sub), "homebrew/%s", safe_title);
         path_push(path, sub);
+        path_push(path, "description.txt");
     } else {
-        /* Try region-specific (4-char) first, fall back to region-agnostic (3-char) */
+        /* Try 4-char (region-specific) path first.
+         * If not found, two path_pop calls remove "description.txt" then the
+         * region char, landing at the 3-char directory where descriptions
+         * actually live in the community metadata pack. */
         snprintf(sub, sizeof(sub), "%c/%c/%c/%c", gc[0], gc[1], gc[2], gc[3]);
         path_push(path, sub);
         path_push(path, "description.txt");
         if (!file_exists(path_get(path))) {
-            path_pop(path);
-            path_pop(path);
-            snprintf(sub, sizeof(sub), "%c/%c/%c", gc[0], gc[1], gc[2]);
-            path_push(path, sub);
-        } else {
-            /* 4-char description found — open it directly */
-            FILE *f = fopen(path_get(path), "r");
-            if (f) {
-                fseek(f, 0, SEEK_END);
-                long sz = ftell(f);
-                fseek(f, 0, SEEK_SET);
-                if (sz > 0 && sz <= 4096) {
-                    rom_description_text = malloc(sz + 1);
-                    if (rom_description_text) {
-                        size_t n = fread(rom_description_text, 1, sz, f);
-                        rom_description_text[n] = '\0';
-                    }
-                }
-                fclose(f);
-            }
-            path_free(path);
-            return;
+            path_pop(path);  /* remove description.txt */
+            path_pop(path);  /* remove region char — now at the 3-char dir */
+            path_push(path, "description.txt");
         }
     }
 
-    path_push(path, "description.txt");
     if (file_exists(path_get(path))) {
         FILE *f = fopen(path_get(path), "r");
         if (f) {
