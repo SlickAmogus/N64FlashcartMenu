@@ -67,7 +67,9 @@ typedef enum {
     SCREENSAVER_BG_GREEN    = 5,
     SCREENSAVER_BG_STARFIELD = 6,
     SCREENSAVER_BG_SKY      = 7,
-    SCREENSAVER_BG_COUNT    = 8,
+    SCREENSAVER_BG_RAIN     = 8,
+    SCREENSAVER_BG_FIRE     = 9,
+    SCREENSAVER_BG_COUNT    = 10,
 } screensaver_bg_t;
 
 /**

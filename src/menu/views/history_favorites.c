@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include "../bookkeeping.h"
 #include "../fonts.h"
+#include "../rom_info.h"
 #include "../ui_components/constants.h"
 #include "../sound.h"
 #include "views.h"
@@ -18,103 +19,153 @@ static int selected_item = -1;
 static bookkeeping_item_t *item_list;
 static uint16_t item_max = 0;
 
+/* Spring animation */
+#define CURSOR_SPRING_RATE  (7.0f)
+#define ROW_HEIGHT          (38)
 
-static void item_reset_selected(menu_t *menu) {
+static float    s_cur_y         = -1.0f;
+static uint32_t s_cur_last_ms   = 0;
+static int      s_prev_selected = -1;
+
+/* Thumbnail boxart for the selected entry */
+static component_boxart_t *thumb = NULL;
+
+static void load_thumb (menu_t *menu) {
+    if (thumb) { ui_components_boxart_free(thumb); thumb = NULL; }
+    if (selected_item < 0 || selected_item >= item_max) return;
+    bookkeeping_item_t *item = &item_list[selected_item];
+    if (item->bookkeeping_type == BOOKKEEPING_TYPE_EMPTY) return;
+    if (!path_has_value(item->primary_path)) return;
+
+    rom_info_t info;
+    if (rom_config_load(item->primary_path, &info) != ROM_OK) return;
+
+    thumb = ui_components_boxart_init(menu->storage_prefix, info.game_code, info.title, IMAGE_BOXART_FRONT);
+}
+
+static void item_reset_selected (menu_t *menu) {
     selected_item = -1;
 
-    for(uint16_t i=0; i<item_max; i++) {
-        if(item_list[i].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
+    for (uint16_t i = 0; i < item_max; i++) {
+        if (item_list[i].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
             selected_item = i;
             break;
         }
-    }  
+    }
+
+    s_cur_y         = -1.0f;
+    s_cur_last_ms   = 0;
+    s_prev_selected = -1;
+    load_thumb(menu);
 }
 
-static void item_move_next() {
+static void item_move_next (menu_t *menu) {
     int last = selected_item;
 
-    do
-    {
+    do {
         selected_item++;
 
-        if(selected_item >= item_max) {
+        if (selected_item >= item_max) {
             selected_item = last;
             break;
-        } else if(item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
+        } else if (item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
             sound_play_effect(SFX_CURSOR);
-            break;
-        }
-    } while (true);  
-}
-
-static void item_move_previous() {
-    int last = selected_item;
-    do
-    {
-        selected_item--;
-
-        if(selected_item < 0) {
-            selected_item = last;
-            break;
-        } else if(item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
-            sound_play_effect(SFX_CURSOR);
+            load_thumb(menu);
             break;
         }
     } while (true);
 }
 
-static void process(menu_t *menu) {
-    if(menu->actions.go_down) {
-        item_move_next();   
-    } else if(menu->actions.go_up) {
-        item_move_previous();
-    } else if(menu->actions.enter && selected_item != -1) {
-                
-        if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
+static void item_move_previous (menu_t *menu) {
+    int last = selected_item;
+
+    do {
+        selected_item--;
+
+        if (selected_item < 0) {
+            selected_item = last;
+            break;
+        } else if (item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
+            sound_play_effect(SFX_CURSOR);
+            load_thumb(menu);
+            break;
+        }
+    } while (true);
+}
+
+static void process (menu_t *menu) {
+    if (menu->actions.go_down) {
+        item_move_next(menu);
+    } else if (menu->actions.go_up) {
+        item_move_previous(menu);
+    } else if (menu->actions.enter && selected_item != -1) {
+        if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
             menu->load.load_favorite_id = selected_item;
             menu->load.load_history_id = -1;
-        } else if(tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
+        } else if (tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
             menu->load.load_history_id = selected_item;
             menu->load.load_favorite_id = -1;
-        }           
+        }
 
-        if(item_list[selected_item].bookkeeping_type == BOOKKEEPING_TYPE_DISK) {
+        if (item_list[selected_item].bookkeeping_type == BOOKKEEPING_TYPE_DISK) {
             menu->next_mode = MENU_MODE_LOAD_DISK;
             sound_play_effect(SFX_ENTER);
-        } else if(item_list[selected_item].bookkeeping_type == BOOKKEEPING_TYPE_ROM) {
+        } else if (item_list[selected_item].bookkeeping_type == BOOKKEEPING_TYPE_ROM) {
             menu->next_mode = MENU_MODE_LOAD_ROM;
             sound_play_effect(SFX_ENTER);
         }
     } else if (menu->actions.go_left) {
-        if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
+        if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
             menu->next_mode = MENU_MODE_HISTORY;
-        } else if(tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
+        } else if (tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
             menu->next_mode = MENU_MODE_BROWSER;
         }
-        sound_play_effect(SFX_CURSOR);       
+        sound_play_effect(SFX_CURSOR);
     } else if (menu->actions.go_right) {
-        if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
+        if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
             menu->next_mode = MENU_MODE_BROWSER;
-        } else if(tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
+        } else if (tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
             menu->next_mode = MENU_MODE_FAVORITE;
         }
         sound_play_effect(SFX_CURSOR);
-    }else if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE && menu->actions.options && selected_item != -1) {
+    } else if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE && menu->actions.options && selected_item != -1) {
         bookkeeping_favorite_remove(&menu->bookkeeping, selected_item);
         item_reset_selected(menu);
         sound_play_effect(SFX_SETTING);
     }
 }
 
-static void draw_list(menu_t *menu, surface_t *display) {
-    if(selected_item != -1) {
-        float highlight_y = VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT +  TEXT_OFFSET_VERTICAL + (selected_item * 19 * 2);
+static void draw_list (menu_t *menu, surface_t *display) {
+    int list_y0 = VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT + TEXT_OFFSET_VERTICAL;
+    uint32_t now_ms = get_ticks_ms();
+
+    if (selected_item != -1) {
+        int target_y = list_y0 + selected_item * ROW_HEIGHT;
+
+        if (s_cur_y < 0.0f) {
+            s_cur_y         = (float)target_y;
+            s_cur_last_ms   = now_ms;
+            s_prev_selected = selected_item;
+        } else if (selected_item != s_prev_selected) {
+            s_cur_y         = (float)(list_y0 + s_prev_selected * ROW_HEIGHT);
+            s_prev_selected = selected_item;
+            s_cur_last_ms   = now_ms;
+        }
+        {
+            float cur_dt = (float)(now_ms - s_cur_last_ms) / 1000.0f;
+            if (cur_dt > 0.1f) cur_dt = 0.1f;
+            float k = cur_dt * CURSOR_SPRING_RATE;
+            if (k > 1.0f) k = 1.0f;
+            s_cur_y      += ((float)target_y - s_cur_y) * k;
+            s_cur_last_ms = now_ms;
+        }
+        int highlight_y = (int)(s_cur_y + 0.5f);
 
         ui_components_box_draw(
             VISIBLE_AREA_X0,
             highlight_y,
             VISIBLE_AREA_X0 + FILE_LIST_HIGHLIGHT_WIDTH + LIST_SCROLLBAR_WIDTH,
-            highlight_y + 39,
+            highlight_y + ROW_HEIGHT + 1,
             FILE_LIST_HIGHLIGHT_COLOR
         );
     }
@@ -122,14 +173,14 @@ static void draw_list(menu_t *menu, surface_t *display) {
     char buffer[1024];
     buffer[0] = 0;
 
-    for(uint16_t i=0; i < item_max; i++) {   
-        if(path_has_value(item_list[i].primary_path)) {
-            sprintf(buffer, "%s%d  : %s\n",buffer ,(i+1), path_last_get(item_list[i].primary_path));
+    for (uint16_t i = 0; i < item_max; i++) {
+        if (path_has_value(item_list[i].primary_path)) {
+            sprintf(buffer, "%s%d  : %s\n", buffer, (i + 1), path_last_get(item_list[i].primary_path));
         } else {
-            sprintf(buffer, "%s%d  : \n",buffer ,(i+1));
+            sprintf(buffer, "%s%d  : \n", buffer, (i + 1));
         }
 
-        if(path_has_value(item_list[i].secondary_path)) {
+        if (path_has_value(item_list[i].secondary_path)) {
             sprintf(buffer, "%s     %s\n", buffer, path_last_get(item_list[i].secondary_path));
         } else {
             sprintf(buffer, "%s\n", buffer);
@@ -139,29 +190,29 @@ static void draw_list(menu_t *menu, surface_t *display) {
     int nbytes = strlen(buffer);
     rdpq_text_printn(
         &(rdpq_textparms_t) {
-            .width = VISIBLE_AREA_WIDTH - (TEXT_MARGIN_HORIZONTAL * 2),
+            .width  = BOXART_X - VISIBLE_AREA_X0 - (TEXT_MARGIN_HORIZONTAL * 2) - 8,
             .height = LAYOUT_ACTIONS_SEPARATOR_Y - OVERSCAN_HEIGHT - (TEXT_MARGIN_VERTICAL * 2),
-            .align = ALIGN_LEFT,
+            .align  = ALIGN_LEFT,
             .valign = VALIGN_TOP,
-            .wrap = WRAP_ELLIPSES,
+            .wrap   = WRAP_ELLIPSES,
             .line_spacing = TEXT_OFFSET_VERTICAL,
         },
         FNT_DEFAULT,
         VISIBLE_AREA_X0 + TEXT_MARGIN_HORIZONTAL,
-        VISIBLE_AREA_Y0 + TEXT_MARGIN_VERTICAL + TAB_HEIGHT +  TEXT_OFFSET_VERTICAL,
+        list_y0,
         buffer,
         nbytes
-    );           
+    );
 }
 
-static void draw(menu_t *menu, surface_t *display) {
+static void draw (menu_t *menu, surface_t *display) {
     rdpq_attach(display, NULL);
 
     ui_components_background_draw();
 
-    if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
+    if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE) {
         ui_components_tabs_common_draw(2);
-    } else if(tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
+    } else if (tab_context == BOOKKEEPING_TAB_CONTEXT_HISTORY) {
         ui_components_tabs_common_draw(1);
     }
 
@@ -169,15 +220,19 @@ static void draw(menu_t *menu, surface_t *display) {
 
     draw_list(menu, display);
 
-    if(selected_item != -1) {
+    if (thumb) {
+        ui_components_boxart_draw(thumb);
+    }
+
+    if (selected_item != -1) {
         ui_components_actions_bar_text_draw(
             STL_DEFAULT,
             ALIGN_LEFT, VALIGN_TOP,
             "A: Load Game\n"
             "\n"
         );
-        
-        if(tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE && selected_item != -1) {
+
+        if (tab_context == BOOKKEEPING_TAB_CONTEXT_FAVORITE && selected_item != -1) {
             ui_components_actions_bar_text_draw(
                 STL_DEFAULT,
                 ALIGN_RIGHT, VALIGN_TOP,
@@ -192,33 +247,33 @@ static void draw(menu_t *menu, surface_t *display) {
         ALIGN_CENTER, VALIGN_TOP,
         "◀ Change Tab ▶\n"
         "\n"
-    );    
+    );
 
-    rdpq_detach_show();   
+    rdpq_detach_show();
 }
 
 void view_favorite_init (menu_t *menu) {
     tab_context = BOOKKEEPING_TAB_CONTEXT_FAVORITE;
-    item_list = menu->bookkeeping.favorite_items;
-    item_max = FAVORITES_COUNT;
+    item_list   = menu->bookkeeping.favorite_items;
+    item_max    = FAVORITES_COUNT;
 
     item_reset_selected(menu);
 }
 
 void view_favorite_display (menu_t *menu, surface_t *display) {
     process(menu);
-    draw(menu, display); 
+    draw(menu, display);
 }
 
 void view_history_init (menu_t *menu) {
     tab_context = BOOKKEEPING_TAB_CONTEXT_HISTORY;
-    item_list = menu->bookkeeping.history_items;
-    item_max = HISTORY_COUNT;
+    item_list   = menu->bookkeeping.history_items;
+    item_max    = HISTORY_COUNT;
 
     item_reset_selected(menu);
 }
 
 void view_history_display (menu_t *menu, surface_t *display) {
     process(menu);
-    draw(menu, display); 
+    draw(menu, display);
 }

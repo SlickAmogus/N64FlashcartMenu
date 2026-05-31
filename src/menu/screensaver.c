@@ -43,6 +43,147 @@ static cloud_t    clouds[SKY_CLOUD_COUNT];
 static bool       clouds_ready    = false;
 static uint32_t   cloud_last_ms   = 0;
 
+/* ---- Rain ---- */
+#define RAIN_COUNT      80
+#define RAIN_FAST_N     30   /* bright white, fastest */
+#define RAIN_MED_N      30   /* blue-white, medium */
+#define RAIN_SLOW_N     20   /* dim grey-blue, slowest */
+
+typedef struct { float x, y; float speed; int len; } rain_drop_t;
+
+static rain_drop_t rain_drops[RAIN_COUNT];
+static bool        rain_ready   = false;
+static uint32_t    rain_last_ms = 0;
+
+static void init_rain (void) {
+    for (int i = 0; i < RAIN_COUNT; i++) {
+        rain_drops[i].x = (float)(rand() % DISPLAY_WIDTH);
+        rain_drops[i].y = (float)(rand() % DISPLAY_HEIGHT);
+        if (i < RAIN_FAST_N) {
+            rain_drops[i].speed = 0.50f + (float)(rand() % 15) * 0.01f;
+            rain_drops[i].len   = 5 + rand() % 4;
+        } else if (i < RAIN_FAST_N + RAIN_MED_N) {
+            rain_drops[i].speed = 0.28f + (float)(rand() % 15) * 0.01f;
+            rain_drops[i].len   = 4 + rand() % 3;
+        } else {
+            rain_drops[i].speed = 0.13f + (float)(rand() % 10) * 0.01f;
+            rain_drops[i].len   = 2 + rand() % 3;
+        }
+    }
+    rain_ready   = true;
+    rain_last_ms = 0;
+}
+
+static void advance_rain (uint32_t now_ms) {
+    if (!rain_ready) { init_rain(); rain_last_ms = now_ms; return; }
+    uint32_t dt = (rain_last_ms == 0) ? 16 : (now_ms - rain_last_ms);
+    if (dt > 100) dt = 100;
+    rain_last_ms = now_ms;
+    for (int i = 0; i < RAIN_COUNT; i++) {
+        rain_drops[i].y += rain_drops[i].speed * (float)dt;
+        if (rain_drops[i].y > (float)(DISPLAY_HEIGHT + rain_drops[i].len)) {
+            rain_drops[i].y = -(float)(rain_drops[i].len);
+            rain_drops[i].x = (float)(rand() % DISPLAY_WIDTH);
+        }
+    }
+}
+
+static void draw_rain (void) {
+    rdpq_set_mode_fill(RGBA32(220, 235, 255, 255));
+    for (int i = 0; i < RAIN_FAST_N; i++) {
+        int rx = (int)rain_drops[i].x;
+        int ry = (int)rain_drops[i].y;
+        int ry2 = ry + rain_drops[i].len;
+        if (ry < DISPLAY_HEIGHT && ry2 > 0)
+            rdpq_fill_rectangle(rx, (ry < 0 ? 0 : ry), rx + 1, (ry2 > DISPLAY_HEIGHT ? DISPLAY_HEIGHT : ry2));
+    }
+    rdpq_set_mode_fill(RGBA32(140, 170, 210, 255));
+    for (int i = RAIN_FAST_N; i < RAIN_FAST_N + RAIN_MED_N; i++) {
+        int rx = (int)rain_drops[i].x;
+        int ry = (int)rain_drops[i].y;
+        int ry2 = ry + rain_drops[i].len;
+        if (ry < DISPLAY_HEIGHT && ry2 > 0)
+            rdpq_fill_rectangle(rx, (ry < 0 ? 0 : ry), rx + 1, (ry2 > DISPLAY_HEIGHT ? DISPLAY_HEIGHT : ry2));
+    }
+    rdpq_set_mode_fill(RGBA32(60, 80, 110, 255));
+    for (int i = RAIN_FAST_N + RAIN_MED_N; i < RAIN_COUNT; i++) {
+        int rx = (int)rain_drops[i].x;
+        int ry = (int)rain_drops[i].y;
+        int ry2 = ry + rain_drops[i].len;
+        if (ry < DISPLAY_HEIGHT && ry2 > 0)
+            rdpq_fill_rectangle(rx, (ry < 0 ? 0 : ry), rx + 1, (ry2 > DISPLAY_HEIGHT ? DISPLAY_HEIGHT : ry2));
+    }
+}
+
+/* ---- Fire ---- */
+#define FIRE_COUNT      100
+#define FIRE_MAX_RISE   360  /* pixels particles can rise before resetting */
+
+typedef struct { float x, y, dx, dy; } fire_particle_t;
+
+static fire_particle_t fire_particles[FIRE_COUNT];
+static bool            fire_ready   = false;
+static uint32_t        fire_last_ms = 0;
+
+static void init_fire (void) {
+    for (int i = 0; i < FIRE_COUNT; i++) {
+        fire_particles[i].x  = (float)(rand() % DISPLAY_WIDTH);
+        fire_particles[i].y  = (float)(DISPLAY_HEIGHT - rand() % FIRE_MAX_RISE);
+        fire_particles[i].dx = ((float)(rand() % 21) - 10) * 0.004f;
+        fire_particles[i].dy = -0.25f - (float)(rand() % 50) * 0.008f;
+    }
+    fire_ready   = true;
+    fire_last_ms = 0;
+}
+
+static void advance_fire (uint32_t now_ms) {
+    if (!fire_ready) { init_fire(); fire_last_ms = now_ms; return; }
+    uint32_t dt = (fire_last_ms == 0) ? 16 : (now_ms - fire_last_ms);
+    if (dt > 100) dt = 100;
+    fire_last_ms = now_ms;
+    float fdt = (float)dt;
+    for (int i = 0; i < FIRE_COUNT; i++) {
+        fire_particles[i].x += fire_particles[i].dx * fdt;
+        fire_particles[i].y += fire_particles[i].dy * fdt;
+        /* Random horizontal wobble for flickering effect */
+        fire_particles[i].dx += ((float)(rand() % 5) - 2) * 0.0003f;
+        if (fire_particles[i].dx >  0.05f) fire_particles[i].dx =  0.05f;
+        if (fire_particles[i].dx < -0.05f) fire_particles[i].dx = -0.05f;
+        if (fire_particles[i].y < (float)(DISPLAY_HEIGHT - FIRE_MAX_RISE)) {
+            fire_particles[i].x  = (float)(rand() % DISPLAY_WIDTH);
+            fire_particles[i].y  = (float)(DISPLAY_HEIGHT - rand() % 20);
+            fire_particles[i].dx = ((float)(rand() % 21) - 10) * 0.004f;
+            fire_particles[i].dy = -0.25f - (float)(rand() % 50) * 0.008f;
+        }
+    }
+}
+
+static void draw_fire (void) {
+    /* 5 color tiers from hottest (bottom) to coolest (top).
+     * Each tier covers a distinct Y band so particles are drawn exactly once. */
+    static const int     thresholds[] = { 50, 120, 210, 310, FIRE_MAX_RISE };
+    static const color_t colors[]     = {
+        RGBA32(255, 250, 160, 255),  /* near base: white-yellow */
+        RGBA32(255, 140,  15, 255),  /* orange */
+        RGBA32(255,  55,   0, 255),  /* orange-red */
+        RGBA32(180,  10,   0, 255),  /* red */
+        RGBA32( 65,   0,   0, 255),  /* dark red / dying */
+    };
+    for (int t = 0; t < 5; t++) {
+        int y_min = DISPLAY_HEIGHT - thresholds[t];
+        int y_max = (t == 0) ? DISPLAY_HEIGHT : DISPLAY_HEIGHT - thresholds[t - 1];
+        rdpq_set_mode_fill(colors[t]);
+        for (int i = 0; i < FIRE_COUNT; i++) {
+            int py = (int)fire_particles[i].y;
+            if (py >= y_min && py < y_max) {
+                int px = (int)fire_particles[i].x;
+                if (px >= 0 && px < DISPLAY_WIDTH - 1)
+                    rdpq_fill_rectangle(px, py, px + 2, py + 3);
+            }
+        }
+    }
+}
+
 /* ---- Starfield ---- */
 #define STAR_COUNT      240
 #define STAR_FAST_N     80      /* bright white,  fastest */
@@ -149,6 +290,8 @@ static color_t get_bg_color (int bg) {
         case SCREENSAVER_BG_RED:      return RGBA32(64,  0,   0, 255);
         case SCREENSAVER_BG_GREEN:    return RGBA32(0,  48,   0, 255);
         case SCREENSAVER_BG_SKY:      return RGBA32(55, 110, 160, 255);
+        case SCREENSAVER_BG_RAIN:     return RGBA32(8,   12,  25, 255);
+        case SCREENSAVER_BG_FIRE:     return RGBA32(0,    0,   0, 255);
         default:                      return RGBA32(0,   0,   0, 255);
     }
 }
@@ -233,6 +376,14 @@ void screensaver_set_bg (int bg) {
     if (bg == SCREENSAVER_BG_SKY) {
         clouds_ready  = false;
         cloud_last_ms = 0;
+    }
+    if (bg == SCREENSAVER_BG_RAIN) {
+        rain_ready   = false;
+        rain_last_ms = 0;
+    }
+    if (bg == SCREENSAVER_BG_FIRE) {
+        fire_ready   = false;
+        fire_last_ms = 0;
     }
 }
 
@@ -399,6 +550,10 @@ void screensaver_deinit (void) {
     cloud_surf_count = 0;
     clouds_ready     = false;
     cloud_last_ms    = 0;
+    rain_ready       = false;
+    rain_last_ms     = 0;
+    fire_ready       = false;
+    fire_last_ms     = 0;
 }
 
 void screensaver_set_text (const char *text) {
@@ -502,6 +657,12 @@ void screensaver_draw (surface_t *display) {
     } else if (current_bg == SCREENSAVER_BG_SKY) {
         advance_clouds(now_ms);
         draw_clouds();
+    } else if (current_bg == SCREENSAVER_BG_RAIN) {
+        advance_rain(now_ms);
+        draw_rain();
+    } else if (current_bg == SCREENSAVER_BG_FIRE) {
+        advance_fire(now_ms);
+        draw_fire();
     }
 
     if (active) {
