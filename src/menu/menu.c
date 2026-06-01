@@ -295,17 +295,22 @@ void menu_run (boot_params_t *boot_params) {
                 menu->mode != MENU_MODE_ERROR        &&
                 menu->mode != MENU_MODE_FAULT
             );
-            bool should_be_active =
-                screensaver_eligible
-                && menu->settings.screensaver_enabled
+            bool timeout_elapsed =
+                menu->settings.screensaver_enabled
                 && menu->settings.screensaver_timeout_secs > 0
                 && (get_ticks_ms() - last_input_ms)
                        >= (uint32_t)menu->settings.screensaver_timeout_secs * 1000U;
+
+            bool should_be_active = screensaver_eligible
+                && (timeout_elapsed || menu->screensaver_force_active);
 
             if (screensaver_was_active && !should_be_active && any_input) {
                 /* Wake-up frame: suppress the input that woke us so it
                  * doesn't double as a menu action (e.g. A launches a ROM). */
                 memset(&menu->actions, 0, sizeof(menu->actions));
+                /* Clear the preview flag so the screensaver stays off until
+                 * the user re-requests it or the timeout fires normally. */
+                menu->screensaver_force_active = false;
             }
 
             if (should_be_active != screensaver_was_active) {

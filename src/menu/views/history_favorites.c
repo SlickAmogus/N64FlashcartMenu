@@ -27,20 +27,64 @@ static float    s_cur_y         = -1.0f;
 static uint32_t s_cur_last_ms   = 0;
 static int      s_prev_selected = -1;
 
-/* Thumbnail boxart for the selected entry */
-static component_boxart_t *thumb = NULL;
+/* Thumbnail boxart for the selected entry.  Two-slot design:
+ *   - thumb_curr is what we're currently displaying
+ *   - thumb_next is the in-flight async PNG decode for the new selection
+ * When thumb_next finishes loading we promote it to thumb_curr, so the
+ * previous boxart stays visible during the brief decode window instead of
+ * flashing a black placeholder.  Loading is debounced too: holding the
+ * d-pad won't fire a load on every step. */
+#define THUMB_DEBOUNCE_MS   (180)
 
-static void load_thumb (menu_t *menu) {
-    if (thumb) { ui_components_boxart_free(thumb); thumb = NULL; }
-    if (selected_item < 0 || selected_item >= item_max) return;
+static component_boxart_t *thumb_curr       = NULL;
+static component_boxart_t *thumb_next       = NULL;
+static int                 thumb_loaded_for = -1;
+static uint32_t            thumb_request_ms = 0;   /* 0 = no pending request */
+
+static void clear_thumb_curr (void) {
+    if (thumb_curr) { ui_components_boxart_free(thumb_curr); thumb_curr = NULL; }
+}
+
+static void clear_thumb_next (void) {
+    if (thumb_next) { ui_components_boxart_free(thumb_next); thumb_next = NULL; }
+}
+
+static void load_thumb_now (menu_t *menu) {
+    clear_thumb_next();
+    thumb_loaded_for = selected_item;
+
+    if (selected_item < 0 || selected_item >= item_max) { clear_thumb_curr(); return; }
     bookkeeping_item_t *item = &item_list[selected_item];
-    if (item->bookkeeping_type == BOOKKEEPING_TYPE_EMPTY) return;
-    if (!path_has_value(item->primary_path)) return;
+    if (item->bookkeeping_type == BOOKKEEPING_TYPE_EMPTY) { clear_thumb_curr(); return; }
+    if (!path_has_value(item->primary_path))               { clear_thumb_curr(); return; }
 
     rom_info_t info;
-    if (rom_config_load(item->primary_path, &info) != ROM_OK) return;
+    if (rom_config_load(item->primary_path, &info) != ROM_OK) { clear_thumb_curr(); return; }
 
-    thumb = ui_components_boxart_init(menu->storage_prefix, info.game_code, info.title, IMAGE_BOXART_FRONT);
+    thumb_next = ui_components_boxart_init(menu->storage_prefix, info.game_code, info.title, IMAGE_BOXART_FRONT);
+    /* If init returned NULL (no boxart PNG on disk), drop the old one so
+     * the empty space communicates "no art for this entry". */
+    if (!thumb_next) clear_thumb_curr();
+}
+
+/* Promote the freshly-loaded thumb_next into the currently-shown slot.
+ * Called from process() each frame so the swap happens as soon as the
+ * async decode completes. */
+static void promote_thumb_if_ready (void) {
+    if (thumb_next && !thumb_next->loading) {
+        clear_thumb_curr();
+        thumb_curr = thumb_next;
+        thumb_next = NULL;
+    }
+}
+
+/* Mark the current selection as the one we eventually want a thumb for.
+ * The actual load happens later in draw() once THUMB_DEBOUNCE_MS has
+ * elapsed since the last request — so rapid scrolling never starts a
+ * load that will be immediately aborted. */
+static void request_thumb (void) {
+    thumb_request_ms = get_ticks_ms();
+    if (thumb_request_ms == 0) thumb_request_ms = 1;  /* 0 reserved for "no request" */
 }
 
 static void item_reset_selected (menu_t *menu) {
@@ -56,11 +100,15 @@ static void item_reset_selected (menu_t *menu) {
     s_cur_y         = -1.0f;
     s_cur_last_ms   = 0;
     s_prev_selected = -1;
-    load_thumb(menu);
+    /* On view (re)entry we load synchronously — there's no rapid scrolling
+     * concern, and waiting 180ms to see the first thumb feels sluggish. */
+    thumb_request_ms = 0;
+    load_thumb_now(menu);
 }
 
 static void item_move_next (menu_t *menu) {
     int last = selected_item;
+    (void)menu;
 
     do {
         selected_item++;
@@ -70,7 +118,7 @@ static void item_move_next (menu_t *menu) {
             break;
         } else if (item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
             sound_play_effect(SFX_CURSOR);
-            load_thumb(menu);
+            request_thumb();
             break;
         }
     } while (true);
@@ -78,6 +126,7 @@ static void item_move_next (menu_t *menu) {
 
 static void item_move_previous (menu_t *menu) {
     int last = selected_item;
+    (void)menu;
 
     do {
         selected_item--;
@@ -87,13 +136,27 @@ static void item_move_previous (menu_t *menu) {
             break;
         } else if (item_list[selected_item].bookkeeping_type != BOOKKEEPING_TYPE_EMPTY) {
             sound_play_effect(SFX_CURSOR);
-            load_thumb(menu);
+            request_thumb();
             break;
         }
     } while (true);
 }
 
 static void process (menu_t *menu) {
+    /* Hand off completed async loads to the displayed slot. */
+    promote_thumb_if_ready();
+
+    /* Fire any pending debounced thumbnail load whose quiet period has
+     * elapsed.  Doing this before reading actions means a fresh key-press
+     * this frame still queues a new request that supersedes the load. */
+    if (thumb_request_ms != 0 && selected_item != thumb_loaded_for) {
+        uint32_t now = get_ticks_ms();
+        if (now - thumb_request_ms >= THUMB_DEBOUNCE_MS) {
+            load_thumb_now(menu);
+            thumb_request_ms = 0;
+        }
+    }
+
     if (menu->actions.go_down) {
         item_move_next(menu);
     } else if (menu->actions.go_up) {
@@ -220,8 +283,8 @@ static void draw (menu_t *menu, surface_t *display) {
 
     draw_list(menu, display);
 
-    if (thumb) {
-        ui_components_boxart_draw(thumb);
+    if (thumb_curr) {
+        ui_components_boxart_draw(thumb_curr);
     }
 
     if (selected_item != -1) {

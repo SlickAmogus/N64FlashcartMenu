@@ -48,6 +48,10 @@ static uint32_t   cloud_last_ms   = 0;
 #define RAIN_FAST_N     30   /* bright white, fastest */
 #define RAIN_MED_N      30   /* blue-white, medium */
 #define RAIN_SLOW_N     20   /* dim grey-blue, slowest */
+/* Horizontal wind drift in px/ms.  Negative = leftward. Applied
+ * uniformly so slower drops drift further per pixel of fall, mimicking
+ * the angle real rain takes in a steady breeze. */
+#define RAIN_WIND_PXMS  (-0.06f)
 
 typedef struct { float x, y; float speed; int len; } rain_drop_t;
 
@@ -79,12 +83,17 @@ static void advance_rain (uint32_t now_ms) {
     uint32_t dt = (rain_last_ms == 0) ? 16 : (now_ms - rain_last_ms);
     if (dt > 100) dt = 100;
     rain_last_ms = now_ms;
+    float wind = RAIN_WIND_PXMS * (float)dt;
     for (int i = 0; i < RAIN_COUNT; i++) {
         rain_drops[i].y += rain_drops[i].speed * (float)dt;
+        rain_drops[i].x += wind;
         if (rain_drops[i].y > (float)(DISPLAY_HEIGHT + rain_drops[i].len)) {
             rain_drops[i].y = -(float)(rain_drops[i].len);
             rain_drops[i].x = (float)(rand() % DISPLAY_WIDTH);
         }
+        /* Wrap horizontally so the wind doesn't drain one edge of the screen. */
+        if (rain_drops[i].x < 0.0f)                       rain_drops[i].x += (float)DISPLAY_WIDTH;
+        else if (rain_drops[i].x >= (float)DISPLAY_WIDTH) rain_drops[i].x -= (float)DISPLAY_WIDTH;
     }
 }
 
@@ -159,6 +168,13 @@ static void advance_fire (uint32_t now_ms) {
 }
 
 static void draw_fire (void) {
+    /* Hot-core glow at the very base — two thin strips, brighter inner,
+     * suggests a bed of incandescent coals the particles rise from. */
+    rdpq_set_mode_fill(RGBA32(120, 25, 0, 255));
+    rdpq_fill_rectangle(0, DISPLAY_HEIGHT - 6, DISPLAY_WIDTH, DISPLAY_HEIGHT - 3);
+    rdpq_set_mode_fill(RGBA32(255, 210, 130, 255));
+    rdpq_fill_rectangle(0, DISPLAY_HEIGHT - 3, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
     /* 5 color tiers from hottest (bottom) to coolest (top).
      * Each tier covers a distinct Y band so particles are drawn exactly once. */
     static const int     thresholds[] = { 50, 120, 210, 310, FIRE_MAX_RISE };
@@ -293,6 +309,46 @@ static color_t get_bg_color (int bg) {
         case SCREENSAVER_BG_RAIN:     return RGBA32(8,   12,  25, 255);
         case SCREENSAVER_BG_FIRE:     return RGBA32(0,    0,   0, 255);
         default:                      return RGBA32(0,   0,   0, 255);
+    }
+}
+
+/* Draw a vertical gradient as a stack of solid-color strips.  Cheap on
+ * RDP — one rectangle per strip — and 24 strips is enough that the
+ * banding is invisible on N64 composite/RGB output. */
+#define GRADIENT_STRIPS  24
+static void draw_vertical_gradient (int r0, int g0, int b0, int r1, int g1, int b1) {
+    int strip_h = DISPLAY_HEIGHT / GRADIENT_STRIPS;
+    for (int i = 0; i < GRADIENT_STRIPS; i++) {
+        float t = (float)i / (float)(GRADIENT_STRIPS - 1);
+        int r = (int)((float)r0 * (1.0f - t) + (float)r1 * t);
+        int g = (int)((float)g0 * (1.0f - t) + (float)g1 * t);
+        int b = (int)((float)b0 * (1.0f - t) + (float)b1 * t);
+        int y0 = i * strip_h;
+        int y1 = (i == GRADIENT_STRIPS - 1) ? DISPLAY_HEIGHT : (i + 1) * strip_h;
+        rdpq_set_mode_fill(RGBA32(r, g, b, 255));
+        rdpq_fill_rectangle(0, y0, DISPLAY_WIDTH, y1);
+    }
+}
+
+/* Per-background fill — gradient for the atmospheric BGs, solid for the rest. */
+static void draw_bg_fill (int bg) {
+    switch (bg) {
+        case SCREENSAVER_BG_SKY:
+            /* Deeper blue overhead, brighter near the horizon. */
+            draw_vertical_gradient(35, 90, 145,  120, 180, 215);
+            break;
+        case SCREENSAVER_BG_RAIN:
+            /* Stormy night — slate-blue top fading to near-black ground. */
+            draw_vertical_gradient(20, 35, 60,  3, 6, 14);
+            break;
+        case SCREENSAVER_BG_FIRE:
+            /* Almost black sky above, deepening to ember-red along the base. */
+            draw_vertical_gradient(0, 0, 0,  55, 5, 0);
+            break;
+        default:
+            rdpq_set_mode_fill(get_bg_color(bg));
+            rdpq_fill_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+            break;
     }
 }
 
@@ -647,9 +703,8 @@ void screensaver_draw (surface_t *display) {
 
     uint32_t now_ms = get_ticks_ms();
 
-    /* Solid background fill (black for starfield too — stars drawn on top) */
-    rdpq_set_mode_fill(get_bg_color(current_bg));
-    rdpq_fill_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    /* Background fill — flat colour or vertical gradient depending on bg. */
+    draw_bg_fill(current_bg);
 
     if (current_bg == SCREENSAVER_BG_STARFIELD) {
         advance_stars(now_ms);

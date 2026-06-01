@@ -147,6 +147,11 @@ static void set_screensaver_timeout_type (menu_t *menu, void *arg) {
     settings_save(&menu->settings);
 }
 
+static void preview_screensaver_action (menu_t *menu, void *arg) {
+    (void)arg;
+    menu->screensaver_force_active = true;
+}
+
 static void set_screensaver_bg_type (menu_t *menu, void *arg) {
     menu->settings.screensaver_bg = (int)(uintptr_t)(arg);
     screensaver_set_bg(menu->settings.screensaver_bg);
@@ -508,6 +513,7 @@ static component_context_menu_t options_context_menu = { .list = {
     { .text = "Screensaver", .submenu = &set_screensaver_enabled_context_menu },
     { .text = "Screensaver Timeout", .submenu = &set_screensaver_timeout_context_menu },
     { .text = "Screensaver BG", .submenu = &set_screensaver_bg_context_menu },
+    { .text = "Preview Screensaver", .action = preview_screensaver_action },
     { .text = "Text Color", .submenu = &set_text_color_context_menu },
     { .text = "Use Saves Folder", .submenu = &set_use_saves_folder_type_context_menu },
     { .text = "Show Saves Folder", .submenu = &set_show_saves_folder_type_context_menu },

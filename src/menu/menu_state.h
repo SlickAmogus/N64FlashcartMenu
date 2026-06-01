@@ -142,6 +142,11 @@ typedef struct {
         bool emulator_file;
         bool extract_file;
     } load_pending;
+
+    /* Set true to force the screensaver on next frame, regardless of the
+     * idle timeout (used by the "Preview Screensaver" menu item).  Cleared
+     * automatically when the user presses any button to dismiss it. */
+    bool screensaver_force_active;
 } menu_t;
 
 
