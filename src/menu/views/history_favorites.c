@@ -32,14 +32,42 @@ static int      s_prev_selected = -1;
  *   - thumb_next is the in-flight async PNG decode for the new selection
  * When thumb_next finishes loading we promote it to thumb_curr, so the
  * previous boxart stays visible during the brief decode window instead of
- * flashing a black placeholder.  Loading is debounced too: holding the
- * d-pad won't fire a load on every step. */
-#define THUMB_DEBOUNCE_MS   (180)
+ * flashing a black placeholder.  Loading is debounced too: only fires
+ * after the cursor has been still for THUMB_DEBOUNCE_MS, so rapid
+ * scrolling never triggers a load. */
+#define THUMB_DEBOUNCE_MS   (350)
+
+/* rom_info_t cache so we don't re-read each entry's ROM header on every
+ * revisit.  Bookkeeping lists are tiny (8 entries), so the cache is too. */
+#define MAX_CACHED_INFOS    (16)
 
 static component_boxart_t *thumb_curr       = NULL;
 static component_boxart_t *thumb_next       = NULL;
 static int                 thumb_loaded_for = -1;
 static uint32_t            thumb_request_ms = 0;   /* 0 = no pending request */
+
+static rom_info_t cached_info[MAX_CACHED_INFOS];
+static bool       cached_info_valid[MAX_CACHED_INFOS];
+
+static void invalidate_info_cache (void) {
+    for (int i = 0; i < MAX_CACHED_INFOS; i++) cached_info_valid[i] = false;
+}
+
+static bool fetch_rom_info (int idx, rom_info_t *out) {
+    if (idx < 0 || idx >= MAX_CACHED_INFOS) {
+        return rom_config_load(item_list[idx].primary_path, out) == ROM_OK;
+    }
+    if (cached_info_valid[idx]) {
+        *out = cached_info[idx];
+        return true;
+    }
+    if (rom_config_load(item_list[idx].primary_path, out) != ROM_OK) {
+        return false;
+    }
+    cached_info[idx]       = *out;
+    cached_info_valid[idx] = true;
+    return true;
+}
 
 static void clear_thumb_curr (void) {
     if (thumb_curr) { ui_components_boxart_free(thumb_curr); thumb_curr = NULL; }
@@ -59,7 +87,7 @@ static void load_thumb_now (menu_t *menu) {
     if (!path_has_value(item->primary_path))               { clear_thumb_curr(); return; }
 
     rom_info_t info;
-    if (rom_config_load(item->primary_path, &info) != ROM_OK) { clear_thumb_curr(); return; }
+    if (!fetch_rom_info(selected_item, &info)) { clear_thumb_curr(); return; }
 
     thumb_next = ui_components_boxart_init(menu->storage_prefix, info.game_code, info.title, IMAGE_BOXART_FRONT);
     /* If init returned NULL (no boxart PNG on disk), drop the old one so
@@ -100,8 +128,11 @@ static void item_reset_selected (menu_t *menu) {
     s_cur_y         = -1.0f;
     s_cur_last_ms   = 0;
     s_prev_selected = -1;
+    /* Tab switch / favorite removal changes which list item_list points
+     * at, so any cached rom_info entries are stale. */
+    invalidate_info_cache();
     /* On view (re)entry we load synchronously — there's no rapid scrolling
-     * concern, and waiting 180ms to see the first thumb feels sluggish. */
+     * concern, and waiting THUMB_DEBOUNCE_MS for the first thumb feels sluggish. */
     thumb_request_ms = 0;
     load_thumb_now(menu);
 }
@@ -146,10 +177,18 @@ static void process (menu_t *menu) {
     /* Hand off completed async loads to the displayed slot. */
     promote_thumb_if_ready();
 
-    /* Fire any pending debounced thumbnail load whose quiet period has
-     * elapsed.  Doing this before reading actions means a fresh key-press
-     * this frame still queues a new request that supersedes the load. */
-    if (thumb_request_ms != 0 && selected_item != thumb_loaded_for) {
+    bool any_input_now =
+        menu->actions.go_up    || menu->actions.go_down  ||
+        menu->actions.go_left  || menu->actions.go_right ||
+        menu->actions.go_fast  || menu->actions.enter    ||
+        menu->actions.back     || menu->actions.options  ||
+        menu->actions.settings || menu->actions.lz_context;
+
+    /* Fire any pending debounced thumbnail load — but only when the user
+     * has truly stopped: debounce window must have elapsed AND there must
+     * be no input this frame.  This second check kills the hitch that
+     * fired during the brief gap between auto-repeat ticks. */
+    if (thumb_request_ms != 0 && selected_item != thumb_loaded_for && !any_input_now) {
         uint32_t now = get_ticks_ms();
         if (now - thumb_request_ms >= THUMB_DEBOUNCE_MS) {
             load_thumb_now(menu);

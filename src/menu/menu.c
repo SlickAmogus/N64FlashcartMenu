@@ -282,6 +282,12 @@ void menu_run (boot_params_t *boot_params) {
 
             if (any_input) {
                 last_input_ms = get_ticks_ms();
+                /* Any input while the preview is active (or queued) cancels
+                 * it.  Otherwise the force flag would keep re-triggering
+                 * the screensaver and the user could never escape. */
+                if (menu->screensaver_force_active) {
+                    menu->screensaver_force_active = false;
+                }
             }
 
             bool screensaver_eligible = (
@@ -308,9 +314,6 @@ void menu_run (boot_params_t *boot_params) {
                 /* Wake-up frame: suppress the input that woke us so it
                  * doesn't double as a menu action (e.g. A launches a ROM). */
                 memset(&menu->actions, 0, sizeof(menu->actions));
-                /* Clear the preview flag so the screensaver stays off until
-                 * the user re-requests it or the timeout fires normally. */
-                menu->screensaver_force_active = false;
             }
 
             if (should_be_active != screensaver_was_active) {

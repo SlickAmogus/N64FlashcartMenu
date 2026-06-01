@@ -168,12 +168,21 @@ static void advance_fire (uint32_t now_ms) {
 }
 
 static void draw_fire (void) {
-    /* Hot-core glow at the very base — two thin strips, brighter inner,
-     * suggests a bed of incandescent coals the particles rise from. */
-    rdpq_set_mode_fill(RGBA32(120, 25, 0, 255));
-    rdpq_fill_rectangle(0, DISPLAY_HEIGHT - 6, DISPLAY_WIDTH, DISPLAY_HEIGHT - 3);
-    rdpq_set_mode_fill(RGBA32(255, 210, 130, 255));
-    rdpq_fill_rectangle(0, DISPLAY_HEIGHT - 3, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    /* Hot-core glow at the base — 8 strips fading from bright orange at
+     * the very bottom up into the gradient, so the brightness blends in
+     * instead of looking like a hard horizontal line.  Each strip is 3 px
+     * tall (24 px total), one rdp mode change per strip. */
+    static const int strips = 8;
+    for (int i = 0; i < strips; i++) {
+        float t = (float)i / (float)(strips - 1);   /* 0 at bottom, 1 at top of glow */
+        int r = (int)(255.0f * (1.0f - t) +  55.0f * t);
+        int g = (int)(170.0f * (1.0f - t) +   5.0f * t);
+        int b = (int)( 60.0f * (1.0f - t) +   0.0f * t);
+        int y1 = DISPLAY_HEIGHT - i * 3;
+        int y0 = y1 - 3;
+        rdpq_set_mode_fill(RGBA32(r, g, b, 255));
+        rdpq_fill_rectangle(0, y0, DISPLAY_WIDTH, y1);
+    }
 
     /* 5 color tiers from hottest (bottom) to coolest (top).
      * Each tier covers a distinct Y band so particles are drawn exactly once. */
