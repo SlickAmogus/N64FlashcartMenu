@@ -268,6 +268,32 @@ void menu_run (boot_params_t *boot_params) {
     bool screensaver_was_active = false;
 
     while (true) {
+        /* Poll joypad EVERY iteration regardless of whether a framebuffer
+         * is available.  display_try_get() can return NULL for many frames
+         * in a row when the render pipeline stalls (e.g. SD-card boxart
+         * load in favorites/history) — and if we only poll inside the
+         * display branch, those frames silently drop the user's input,
+         * making last_input_ms go stale and the screensaver fire early. */
+        joypad_poll();
+        {
+            bool raw_input = false;
+            JOYPAD_PORT_FOREACH (i) {
+                joypad_buttons_t btns = joypad_get_buttons_held(i);
+                joypad_8way_t dir = joypad_get_direction(i, JOYPAD_2D_DPAD | JOYPAD_2D_STICK);
+                joypad_8way_t cdir = joypad_get_direction(i, JOYPAD_2D_C);
+                if (btns.raw || dir != JOYPAD_8WAY_NONE || cdir != JOYPAD_8WAY_NONE) {
+                    raw_input = true;
+                    break;
+                }
+            }
+            if (raw_input) {
+                last_input_ms = get_ticks_ms();
+                if (menu->screensaver_force_active) {
+                    menu->screensaver_force_active = false;
+                }
+            }
+        }
+
         surface_t *display = display_try_get();
 
         if (display != NULL) {
@@ -282,12 +308,6 @@ void menu_run (boot_params_t *boot_params) {
 
             if (any_input) {
                 last_input_ms = get_ticks_ms();
-                /* Any input while the preview is active (or queued) cancels
-                 * it.  Otherwise the force flag would keep re-triggering
-                 * the screensaver and the user could never escape. */
-                if (menu->screensaver_force_active) {
-                    menu->screensaver_force_active = false;
-                }
             }
 
             bool screensaver_eligible = (
