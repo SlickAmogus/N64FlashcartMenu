@@ -8,6 +8,7 @@
 
 #include "../ui_components.h"
 #include "../fonts.h"
+#include "../vru.h"
 #include "constants.h"
 
 /**
@@ -328,6 +329,45 @@ void ui_components_actions_bar_text_draw (menu_font_type_t style, rdpq_align_t a
     if (formatted != buffer) {
         free(formatted);
     }
+}
+
+/**
+ * @brief Draw a small microphone icon in the top-right corner.
+ *
+ * Drawn with a handful of rdpq_fill_rectangle calls instead of loading a
+ * sprite, so it costs nothing in flash or asset pipeline.  The shape is a
+ * conventional "mic on a stand": rounded capsule head, short neck, wide
+ * base.  Colour is a soft white that reads against both dark and bright
+ * backgrounds.
+ */
+void ui_components_mic_indicator_draw (void) {
+    if (!vru_is_present()) return;
+
+    /* Anchor 4 px inside the top-right of the visible area. */
+    int x = VISIBLE_AREA_X1 - 16;
+    int y = VISIBLE_AREA_Y0 + 4;
+
+    color_t fg     = RGBA32(235, 235, 240, 255);
+    color_t shadow = RGBA32(0,   0,   0,   180);
+
+    rdpq_mode_push();
+        rdpq_set_mode_fill(shadow);
+        /* Soft drop shadow 1 px down-right so the icon stays readable
+         * even when drawn over a bright sky/cloud background. */
+        rdpq_fill_rectangle(x + 4, y + 1, x + 13, y + 11);   /* head shadow */
+        rdpq_fill_rectangle(x + 3, y + 3, x + 14, y +  9);
+        rdpq_fill_rectangle(x + 8, y + 12, x + 10, y + 15);  /* neck shadow */
+        rdpq_fill_rectangle(x + 4, y + 15, x + 14, y + 17);  /* base shadow */
+
+        rdpq_set_mode_fill(fg);
+        /* Capsule mic head — stacked rects fake a rounded top/bottom. */
+        rdpq_fill_rectangle(x + 3, y + 0, x + 12, y + 10);
+        rdpq_fill_rectangle(x + 2, y + 2, x + 13, y +  8);
+        /* Short neck. */
+        rdpq_fill_rectangle(x + 7, y + 11, x +  9, y + 14);
+        /* Stand base. */
+        rdpq_fill_rectangle(x + 3, y + 14, x + 13, y + 16);
+    rdpq_mode_pop();
 }
 
 /**

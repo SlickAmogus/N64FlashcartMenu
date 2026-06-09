@@ -351,6 +351,8 @@ static void draw (menu_t *menu, surface_t *display) {
         "\n"
     );
 
+    ui_components_mic_indicator_draw();
+
     rdpq_detach_show();
 }
 

@@ -165,6 +165,14 @@ void ui_components_main_text_draw(menu_font_type_t style, rdpq_align_t align, rd
 void ui_components_actions_bar_text_draw(menu_font_type_t style, rdpq_align_t align, rdpq_valign_t valign, char *fmt, ...);
 
 /**
+ * @brief Draw a small microphone status icon in the top-right corner.
+ *
+ * No-op when no VRU is connected.  Intended to be called at the end of a
+ * view's draw, before rdpq_detach_show, so it appears as an overlay.
+ */
+void ui_components_mic_indicator_draw(void);
+
+/**
  * @brief Initialize the background component.
  * 
  * @param cache_location Location of the cache.

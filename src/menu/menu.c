@@ -26,6 +26,7 @@
 #include "settings.h"
 #include "sound.h"
 #include "usb_comm.h"
+#include "vru.h"
 #include "utils/fs.h"
 #include "views/views.h"
 
@@ -374,6 +375,7 @@ void menu_run (boot_params_t *boot_params) {
         bgm_process();
         screensaver_process();
         sound_poll();
+        vru_poll();
 
         png_decoder_poll();
 
