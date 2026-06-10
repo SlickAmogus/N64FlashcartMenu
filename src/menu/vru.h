@@ -17,6 +17,7 @@
 #define VRU_H__
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /** @brief Lifecycle states for the connected VRU. */
 typedef enum {
@@ -39,6 +40,22 @@ typedef enum {
 
 /** @brief Return and clear the most-recently-recognized hit (if any). */
 vru_hit_t vru_consume_hit (void);
+
+/** @brief Snapshot of the last 0x09 result block — exposed for debug UI. */
+typedef struct {
+    bool      has_data;        /**< true once at least one CRC-valid read happened */
+    uint16_t  voice_level;     /**< bytes 0x08–0x09 in the result block (mic level) */
+    uint16_t  rel_level;       /**< bytes 0x0A–0x0B (voice / noise ratio)            */
+    uint16_t  voice_length;    /**< bytes 0x0C–0x0D (utterance length, ~ms)          */
+    uint16_t  err_flags;       /**< bytes 0x04–0x05 (recognition error bits)         */
+    uint16_t  valid_count;     /**< bytes 0x06–0x07 (# of valid match results)       */
+    uint16_t  hit_1_index;     /**< bytes 0x0E–0x0F (best-match dictionary slot)     */
+    uint16_t  hit_1_deviance;  /**< bytes 0x10–0x11 (best-match confidence — lower is better) */
+    uint16_t  mode_status;     /**< bytes 0x22–0x23 (mode + status flags, normally 0x0040) */
+} vru_debug_info_t;
+
+/** @brief Copy the most-recent 0x09 read into @p out (for debug overlay). */
+void vru_get_debug_info (vru_debug_info_t *out);
 
 /** @brief Refresh cached state.  Cheap; call once per frame. */
 void vru_poll (void);

@@ -5,6 +5,7 @@
  */
 
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "../ui_components.h"
 #include "../fonts.h"
@@ -376,6 +377,36 @@ void ui_components_mic_indicator_draw (void) {
         /* Stand base. */
         rdpq_fill_rectangle(x + 3, y + 14, x + 13, y + 16);
     rdpq_mode_pop();
+
+    /* Debug overlay: while LOADED, print the last 0x09 result block's
+     * key fields so we can see what the VRU is actually returning.
+     * Three short lines stacked to the left of the mic icon:
+     *   line 1: voice-level + relative-level
+     *   line 2: error flags + valid match count
+     *   line 3: hit_1 index + mode/status word
+     * No formatting fanciness — this is a temporary diagnostic. */
+    if (vru_get_presence() == VRU_PRESENCE_LOADED) {
+        vru_debug_info_t dbg;
+        vru_get_debug_info(&dbg);
+        if (dbg.has_data) {
+            char l1[32], l2[32], l3[32];
+            snprintf(l1, sizeof(l1), "vl%04X rl%04X", dbg.voice_level, dbg.rel_level);
+            snprintf(l2, sizeof(l2), "er%04X n%u",    dbg.err_flags, dbg.valid_count);
+            snprintf(l3, sizeof(l3), "h%04X st%04X",  dbg.hit_1_index, dbg.mode_status);
+            int text_right = VISIBLE_AREA_X1 - 22;   /* leave room for icon */
+            int text_x     = text_right - 220;
+            rdpq_textparms_t p = {
+                .style_id = STL_DEFAULT,
+                .width    = 220,
+                .align    = ALIGN_RIGHT,
+                .valign   = VALIGN_TOP,
+                .wrap     = WRAP_NONE,
+            };
+            rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 +  2, l1);
+            rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 + 14, l2);
+            rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 + 26, l3);
+        }
+    }
 }
 
 /**

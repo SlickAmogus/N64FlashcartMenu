@@ -307,6 +307,8 @@ static bool vru_upload_dictionary (int port) {
  *   0x12..0x21  hits 2-5 (index/deviance pairs)
  *   0x22..0x23  mode + status flags
  *   0x24        data CRC */
+static vru_debug_info_t last_debug = {0};
+
 static uint16_t vru_read_result (int port) {
     const uint8_t cmd[3] = { 0x09, 0x00, 0x00 };
     uint8_t rx[37] = {0};
@@ -314,6 +316,19 @@ static uint16_t vru_read_result (int port) {
 
     /* CRC over the 36 data bytes. */
     if (rx[36] != vru_crc(&rx[0], 36)) return 0x7FFF;
+
+    /* Capture every field BEFORE sanity rejects, so the debug overlay
+     * can show what the VRU is actually returning — even garbage tells
+     * us something about the state. */
+    last_debug.has_data       = true;
+    last_debug.err_flags      = (uint16_t)rx[0x04] | ((uint16_t)rx[0x05] << 8);
+    last_debug.valid_count    = (uint16_t)rx[0x06] | ((uint16_t)rx[0x07] << 8);
+    last_debug.voice_level    = (uint16_t)rx[0x08] | ((uint16_t)rx[0x09] << 8);
+    last_debug.rel_level      = (uint16_t)rx[0x0A] | ((uint16_t)rx[0x0B] << 8);
+    last_debug.voice_length   = (uint16_t)rx[0x0C] | ((uint16_t)rx[0x0D] << 8);
+    last_debug.hit_1_index    = (uint16_t)rx[0x0E] | ((uint16_t)rx[0x0F] << 8);
+    last_debug.hit_1_deviance = (uint16_t)rx[0x10] | ((uint16_t)rx[0x11] << 8);
+    last_debug.mode_status    = (uint16_t)rx[0x22] | ((uint16_t)rx[0x23] << 8);
 
     /* If we read 0x09 before the VRU has actually produced a result
      * (e.g. listening just started, no speech yet) the response is an
@@ -395,6 +410,10 @@ vru_hit_t vru_consume_hit (void) {
     vru_hit_t h = pending_hit;
     pending_hit = VRU_HIT_NONE;
     return h;
+}
+
+void vru_get_debug_info (vru_debug_info_t *out) {
+    if (out) *out = last_debug;
 }
 
 void vru_poll (void) {
