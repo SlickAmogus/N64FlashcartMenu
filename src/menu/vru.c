@@ -39,16 +39,41 @@ static bool           load_attempted  = false;
 static int detected_frames = 0;
 #define INIT_DELAY_FRAMES   (6)
 
-/* Phoneme sequence for "UP", encoded against the Hey-You-Pikachu USA
- * phoneme alphabet (each entry is a 16-bit big-endian code, all codes
- * multiples of 3 per the alphabet's encoding scheme).
- *   0x0432 — start-of-word marker for "uh"-class vowels
- *   0x00A8 — the "uh" sound (as in cup / luck / Pi"ka")
- *   0x03A8 — the "p" stop (as in topaz)
- * This is the first word we try to upload after init, purely to confirm
- * the joybus payload + CRC plumbing works end-to-end. */
-static const uint16_t test_word_up[] = { 0x0432, 0x00A8, 0x03A8 };
-#define TEST_WORD_UP_LEN  (sizeof(test_word_up) / sizeof(test_word_up[0]))
+/* Navigation vocabulary, encoded against the Hey-You-Pikachu USA phoneme
+ * alphabet (each entry is a 16-bit code, all codes are multiples of 3
+ * per the alphabet's encoding scheme — see USA VRU Sound Indices doc).
+ *
+ * The dictionary index assigned by the VRU is the order we upload, so
+ * once recognition wakes up, hit_index == VRU_WORD_* tells us which
+ * navigation action to take.
+ *
+ * Encodings are educated guesses from the alphabet's example notes —
+ * may need tuning once we observe what the VRU actually matches against.
+ *
+ *   "UP"     — vowel-start marker for /uh/, /uh/, /p/-stop
+ *   "DOWN"   — /d/, /aow/-diphthong, /n/
+ *   "LEFT"   — /l/, /e/-as-in-let, /f/, /t/-final
+ *   "RIGHT"  — /r/-initial, /eye/-diphthong, /t/-final
+ *   "OK"     — vowel-start marker for /o/, /o/-as-in-okay, /k/, long /ay/ */
+static const uint16_t vru_word_up[]    = { 0x0432, 0x00A8, 0x03A8 };
+static const uint16_t vru_word_down[]  = { 0x0384, 0x01EF, 0x0348 };
+static const uint16_t vru_word_left[]  = { 0x02E2, 0x0069, 0x03ED, 0x0003, 0x03C6 };
+static const uint16_t vru_word_right[] = { 0x02FD, 0x01B0, 0x0003, 0x03C6 };
+static const uint16_t vru_word_ok[]    = { 0x043B, 0x0213, 0x03CC, 0x018F };
+
+typedef struct {
+    const uint16_t *phonemes;
+    uint8_t         count;
+} vru_word_t;
+
+static const vru_word_t vru_dictionary[] = {
+    { vru_word_up,    sizeof(vru_word_up)    / sizeof(uint16_t) },
+    { vru_word_down,  sizeof(vru_word_down)  / sizeof(uint16_t) },
+    { vru_word_left,  sizeof(vru_word_left)  / sizeof(uint16_t) },
+    { vru_word_right, sizeof(vru_word_right) / sizeof(uint16_t) },
+    { vru_word_ok,    sizeof(vru_word_ok)    / sizeof(uint16_t) },
+};
+#define VRU_DICT_SIZE   (sizeof(vru_dictionary) / sizeof(vru_dictionary[0]))
 
 /* VRU response-CRC: process each input byte MSB-first into an 8-bit shift
  * register, XOR-tapping with 0x85 whenever the bit shifted out was 1.  The
@@ -125,58 +150,74 @@ static bool vru_initialize (int port) {
 
 /* Build the 80-byte joybus word buffer for a single dictionary entry.
  *
- * The VRU's read-status parser (see simple64's vru_controller.c) walks the
- * loaded 40-uint16_t buffer like this:
- *   - skip leading 0x0000 entries
- *   - find a 0x0003 marker
- *   - skip 3 more uint16_t (header bytes the game uses for word metadata —
- *     we just write zeros there)
- *   - read one uint16_t LENGTH
- *   - the next LENGTH uint16_t entries are the phoneme stream
+ * Per the reverse-engineered SDK pseudo-code (zoinkity's notes) the buffer
+ * is RIGHT-aligned and the on-wire format is 16-bit LITTLE-ENDIAN:
  *
- * Everything is big-endian on the wire because that's how the N64
- * marshals uint16_t to joybus. */
+ *   [zeros padding to start of marker]      bytes 0..(K-1)
+ *   [marker 0x0003 LE = bytes 03 00]        bytes K..K+1
+ *   [padding word 0x0000]                   bytes K+2..K+3
+ *   [phoneme words, each 2 bytes LE]        bytes K+4..(78-1)
+ *   [terminator word 0x0000]                bytes 78..79
+ *
+ * K is chosen so the data ends exactly at byte 77 (just before the
+ * trailing 0x0000 terminator at bytes 78-79).  For N phonemes, that
+ * means data starts at byte 78 - 2*N and the marker word at
+ * byte 78 - 2*N - 4.
+ *
+ * (My earlier left-aligned big-endian layout matched the simple64
+ *  *emulator*'s parser but not the actual VRU silicon — the CRC echo
+ *  comes back fine either way because the VRU computes the CRC over
+ *  whatever bytes we send, regardless of whether they're meaningful.) */
 static void vru_build_word_buffer (const uint16_t *phonemes, int count,
                                    uint8_t buf[80]) {
     memset(buf, 0, 80);
-    /* word[0] = 0x0003 marker */
-    buf[0] = 0x00;
-    buf[1] = 0x03;
-    /* word[1], word[2] = 0  (already zero-padded) */
-    /* word[3] = LENGTH (count of phonemes), at byte offset 6 */
-    buf[6] = (uint8_t)((count >> 8) & 0xFF);
-    buf[7] = (uint8_t)( count       & 0xFF);
-    /* word[4..] = phonemes, starting at byte offset 8 */
-    int max_phonemes = (80 - 8) / 2;
-    if (count > max_phonemes) count = max_phonemes;
+
+    int data_end   = 78;                    /* exclusive — leaves bytes 78-79 as terminator */
+    int data_start = data_end - 2 * count;
+    int marker_at  = data_start - 4;        /* marker + 1 padding word */
+
+    if (marker_at < 0) return;              /* word too long to fit */
+
+    /* Marker 0x0003, little-endian on wire. */
+    buf[marker_at + 0] = 0x03;
+    buf[marker_at + 1] = 0x00;
+    /* Padding word at marker_at+2..+3 stays zero. */
+
+    /* Phoneme stream, each code little-endian on wire. */
     for (int i = 0; i < count; i++) {
-        buf[8 + i*2 + 0] = (uint8_t)((phonemes[i] >> 8) & 0xFF);
-        buf[8 + i*2 + 1] = (uint8_t)( phonemes[i]       & 0xFF);
+        buf[data_start + 2*i + 0] = (uint8_t)( phonemes[i]       & 0xFF);
+        buf[data_start + 2*i + 1] = (uint8_t)((phonemes[i] >> 8) & 0xFF);
     }
+    /* Trailing terminator at bytes 78-79 stays zero. */
 }
 
-/* Upload one word to the VRU.
- *
- * Sequence:
- *   1. 0x0C "clear, expect N words" — sub-command 0x02 in payload byte 0.
- *   2. Four back-to-back 0x0A (JCMD_VRU_WRITE) calls, each carrying 20 of
- *      the 80 buffer bytes.  Each one returns the VRU-computed CRC of the
- *      20 payload bytes; we match it against our local CRC.
- *   3. 0x0B (JCMD_VRU_READ_STATUS) — this is what triggers the VRU to
- *      actually parse the accumulated buffer.  Returns {state, 0, crc}.
- *
- * Returns true only if every CRC verification matches. */
-static bool vru_upload_word (int port, const uint16_t *phonemes, int count) {
-    /* Step 1: clear dictionary, expect 1 word. */
-    const uint8_t clear_cmd[7] = { 0x0C, 0x00, 0x00,  0x02, 0x00, 0x01, 0x00 };
-    uint8_t rx1[1] = {0};
-    joybus_exec_cmd(port, 7, 1, clear_cmd, rx1);
-    if (rx1[0] != vru_crc(&clear_cmd[3], 4)) return false;
+/* Read the 0x0B (status) reply and return the 16-bit state value, or
+ * UINT16_MAX on CRC mismatch.  Wire layout is {state_hi, state_lo, crc}
+ * — i.e. the state byte order on the wire is big-endian. */
+static uint16_t vru_read_state (int port) {
+    const uint8_t cmd[3] = { 0x0B, 0x00, 0x00 };
+    uint8_t rx[3] = {0};
+    joybus_exec_cmd(port, 3, 3, cmd, rx);
+    if (rx[2] != vru_crc(&rx[0], 2)) return UINT16_MAX;
+    return ((uint16_t)rx[0] << 8) | rx[1];
+}
 
-    /* Step 2: four 20-byte chunks of word buffer. */
-    uint8_t buf[80];
-    vru_build_word_buffer(phonemes, count, buf);
+/* Send a single 0x0C "config" command with a 4-byte payload and validate
+ * the VRU's CRC echo.  Common payloads (per the protocol notes):
+ *   { 0x02, 0x00, N,    0x00 }  clear dictionary, expect N words
+ *   { 0x00, 0x00, 0x07, 0x00 }  pre-write state transition
+ *   { 0x00, 0x00, 0x06, 0x00 }  start listening
+ *   { 0x05, 0x00, 0x00, 0x00 }  stop listening */
+static bool vru_send_config (int port, uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3) {
+    const uint8_t tx[7] = { 0x0C, 0x00, 0x00, b0, b1, b2, b3 };
+    uint8_t rx[1] = {0};
+    joybus_exec_cmd(port, 7, 1, tx, rx);
+    return rx[0] == vru_crc(&tx[3], 4);
+}
 
+/* Push the 80-byte word buffer as four back-to-back 0x0A writes.  Each
+ * one's response is a CRC of the 20 payload bytes we sent. */
+static bool vru_write_word_buffer (int port, const uint8_t buf[80]) {
     for (int chunk = 0; chunk < 4; chunk++) {
         uint8_t tx[23];
         tx[0] = 0x0A;
@@ -187,12 +228,47 @@ static bool vru_upload_word (int port, const uint16_t *phonemes, int count) {
         joybus_exec_cmd(port, 23, 1, tx, rx);
         if (rx[0] != vru_crc(&tx[3], 20)) return false;
     }
+    return true;
+}
 
-    /* Step 3: trigger parse. */
-    const uint8_t parse_cmd[3] = { 0x0B, 0x00, 0x00 };
-    uint8_t rx3[3] = {0};
-    joybus_exec_cmd(port, 3, 3, parse_cmd, rx3);
-    if (rx3[2] != vru_crc(&rx3[0], 2)) return false;
+/* Upload the full navigation dictionary and verify semantically.
+ *
+ * Sequence (matches the SDK's strings-send-for-E path):
+ *   1. 0x0C { 0x02, 0x00, N, 0x00 } — clear, expect N words.
+ *   2. 0x0B status read — sanity check, must not have high-byte error bits.
+ *   3. For each word in dictionary:
+ *        - build a right-aligned LE word buffer
+ *        - push it as four 0x0A writes
+ *        - read state via 0x0B; reject if error bits 0x0100 / 0x0200 /
+ *          0xFE00 are set (buffer overflow / invalid word / etc.).
+ *
+ * The post-write state check is the part the previous version was
+ * missing — without it a malformed word would silently slip through
+ * because the per-chunk CRCs would still validate. */
+static bool vru_upload_dictionary (int port) {
+    /* Step 1: clear & advertise the word count. */
+    if (!vru_send_config(port, 0x02, 0x00, (uint8_t)VRU_DICT_SIZE, 0x00)) return false;
+
+    /* Step 2: status read after clear; the state high byte must show no
+     * error bits.  0x0100 (USA-region flag) is allowed because the doc
+     * says it's set after init on US ROMs and isn't an error here. */
+    uint16_t state = vru_read_state(port);
+    if (state == UINT16_MAX)        return false;
+    if (state & 0xFE40)             return false;  /* error bits or "slot empty" */
+
+    /* Step 3: upload each word. */
+    for (int i = 0; i < (int)VRU_DICT_SIZE; i++) {
+        uint8_t buf[80];
+        vru_build_word_buffer(vru_dictionary[i].phonemes,
+                              vru_dictionary[i].count, buf);
+        if (!vru_write_word_buffer(port, buf)) return false;
+
+        state = vru_read_state(port);
+        if (state == UINT16_MAX)    return false;
+        if (state & 0x0100)         return false;  /* buffer overflow */
+        if (state & 0x0200)         return false;  /* invalid word */
+        if (state & 0xFE00)         return false;  /* other high-byte error */
+    }
 
     return true;
 }
@@ -234,7 +310,7 @@ void vru_poll (void) {
      * retry on failure — the VRU's internal state would get stomped. */
     if (presence == VRU_PRESENCE_READY && !load_attempted) {
         load_attempted = true;
-        if (vru_upload_word(port, test_word_up, TEST_WORD_UP_LEN)) {
+        if (vru_upload_dictionary(port)) {
             presence = VRU_PRESENCE_LOADED;
         }
     }
