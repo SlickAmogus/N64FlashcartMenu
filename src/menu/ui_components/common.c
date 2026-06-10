@@ -351,8 +351,9 @@ void ui_components_mic_indicator_draw (void) {
 
     color_t fg;
     switch (vru_get_presence()) {
-        case VRU_PRESENCE_INIT_FAILED: fg = RGBA32(230,  60,  60, 255); break;  /* red */
-        case VRU_PRESENCE_READY:       fg = RGBA32(235, 235, 240, 255); break;  /* white */
+        case VRU_PRESENCE_INIT_FAILED: fg = RGBA32(230,  60,  60, 255); break;  /* red    */
+        case VRU_PRESENCE_LOADED:      fg = RGBA32( 90, 220,  90, 255); break;  /* green  */
+        case VRU_PRESENCE_READY:       fg = RGBA32(235, 235, 240, 255); break;  /* white  */
         default:                       fg = RGBA32(240, 215,  80, 255); break;  /* yellow */
     }
     color_t shadow = RGBA32(0, 0, 0, 180);

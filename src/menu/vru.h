@@ -24,6 +24,7 @@ typedef enum {
     VRU_PRESENCE_DETECTED     = 1,  /**< Hardware seen; init not yet attempted. */
     VRU_PRESENCE_INIT_FAILED  = 2,  /**< Init handshake didn't get expected response. */
     VRU_PRESENCE_READY        = 3,  /**< Init succeeded; ready to accept vocabulary. */
+    VRU_PRESENCE_LOADED       = 4,  /**< Test word uploaded and parsed without CRC errors. */
 } vru_presence_t;
 
 /** @brief Refresh cached state.  Cheap; call once per frame. */
