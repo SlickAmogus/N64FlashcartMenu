@@ -3,14 +3,14 @@
  * @brief Voice Recognition Unit (NUS-020 / Hey You Pikachu microphone) support
  * @ingroup menu
  *
- * The N64 VRU is a peripheral that plugs into a controller port and contains
- * an on-board speech-recognition ASIC.  This module currently only handles
- * detection — call @ref vru_poll once per frame and @ref vru_is_present
- * anywhere to test whether a VRU is currently connected to any port.
+ * Detection + initialization of the N64 VRU peripheral.  Recognition itself
+ * (loading vocabulary, polling for matches) isn't wired up yet — that
+ * requires the phoneme-encoded dictionary format which is partly
+ * reverse-engineered.  For now, this module lets the menu show whether a
+ * VRU is plugged in and whether the documented init handshake succeeded.
  *
- * Hot-plug works: libdragon's joybus subsystem refreshes peripheral
- * identifiers in the background, so the polled state reflects reality
- * within a couple of frames of plugging or unplugging.
+ * Hot-plug is supported: libdragon's joybus subsystem refreshes peripheral
+ * identifiers automatically, and presence is re-evaluated every frame.
  */
 
 #ifndef VRU_H__
@@ -18,13 +18,24 @@
 
 #include <stdbool.h>
 
-/** @brief Refresh the cached VRU presence state.  Cheap; call once per frame. */
+/** @brief Lifecycle states for the connected VRU. */
+typedef enum {
+    VRU_PRESENCE_ABSENT       = 0,  /**< No VRU connected. */
+    VRU_PRESENCE_DETECTED     = 1,  /**< Hardware seen; init not yet attempted. */
+    VRU_PRESENCE_INIT_FAILED  = 2,  /**< Init handshake didn't get expected response. */
+    VRU_PRESENCE_READY        = 3,  /**< Init succeeded; ready to accept vocabulary. */
+} vru_presence_t;
+
+/** @brief Refresh cached state.  Cheap; call once per frame. */
 void vru_poll (void);
 
-/** @brief Is a VRU currently connected to any controller port? */
+/** @brief Is a VRU currently connected (in any state)? */
 bool vru_is_present (void);
 
-/** @brief Port (0–3) the VRU is connected to, or −1 if not present. */
+/** @brief Port (0–3) the VRU is connected to, or −1 if absent. */
 int  vru_get_port (void);
+
+/** @brief Current lifecycle state of the connected VRU. */
+vru_presence_t vru_get_presence (void);
 
 #endif /* VRU_H__ */

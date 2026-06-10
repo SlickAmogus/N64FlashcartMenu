@@ -337,8 +337,10 @@ void ui_components_actions_bar_text_draw (menu_font_type_t style, rdpq_align_t a
  * Drawn with a handful of rdpq_fill_rectangle calls instead of loading a
  * sprite, so it costs nothing in flash or asset pipeline.  The shape is a
  * conventional "mic on a stand": rounded capsule head, short neck, wide
- * base.  Colour is a soft white that reads against both dark and bright
- * backgrounds.
+ * base.  Colour reflects VRU lifecycle state:
+ *   - yellow while waiting for / running the init handshake
+ *   - red    if the init handshake failed
+ *   - white  once the VRU is initialized and ready
  */
 void ui_components_mic_indicator_draw (void) {
     if (!vru_is_present()) return;
@@ -347,8 +349,13 @@ void ui_components_mic_indicator_draw (void) {
     int x = VISIBLE_AREA_X1 - 16;
     int y = VISIBLE_AREA_Y0 + 4;
 
-    color_t fg     = RGBA32(235, 235, 240, 255);
-    color_t shadow = RGBA32(0,   0,   0,   180);
+    color_t fg;
+    switch (vru_get_presence()) {
+        case VRU_PRESENCE_INIT_FAILED: fg = RGBA32(230,  60,  60, 255); break;  /* red */
+        case VRU_PRESENCE_READY:       fg = RGBA32(235, 235, 240, 255); break;  /* white */
+        default:                       fg = RGBA32(240, 215,  80, 255); break;  /* yellow */
+    }
+    color_t shadow = RGBA32(0, 0, 0, 180);
 
     rdpq_mode_push();
         rdpq_set_mode_fill(shadow);
