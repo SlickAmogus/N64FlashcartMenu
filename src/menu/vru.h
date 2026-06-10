@@ -24,8 +24,21 @@ typedef enum {
     VRU_PRESENCE_DETECTED     = 1,  /**< Hardware seen; init not yet attempted. */
     VRU_PRESENCE_INIT_FAILED  = 2,  /**< Init handshake didn't get expected response. */
     VRU_PRESENCE_READY        = 3,  /**< Init succeeded; ready to accept vocabulary. */
-    VRU_PRESENCE_LOADED       = 4,  /**< Test word uploaded and parsed without CRC errors. */
+    VRU_PRESENCE_LOADED       = 4,  /**< Dictionary uploaded; listening cycle active. */
 } vru_presence_t;
+
+/** @brief Action a recognized utterance maps to. */
+typedef enum {
+    VRU_HIT_NONE  = 0,
+    VRU_HIT_UP    = 1,
+    VRU_HIT_DOWN  = 2,
+    VRU_HIT_LEFT  = 3,
+    VRU_HIT_RIGHT = 4,
+    VRU_HIT_OK    = 5,
+} vru_hit_t;
+
+/** @brief Return and clear the most-recently-recognized hit (if any). */
+vru_hit_t vru_consume_hit (void);
 
 /** @brief Refresh cached state.  Cheap; call once per frame. */
 void vru_poll (void);

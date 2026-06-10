@@ -307,6 +307,19 @@ void menu_run (boot_params_t *boot_params) {
                 menu->actions.back    || menu->actions.options   ||
                 menu->actions.settings|| menu->actions.lz_context;
 
+            /* Inject any recognized voice command as a synthetic joypad
+             * action, so the active view processes it the same way it
+             * would a button press.  Done after actions_update so the
+             * VRU hit doesn't get clobbered by actions_clear. */
+            switch (vru_consume_hit()) {
+                case VRU_HIT_UP:    menu->actions.go_up    = true; any_input = true; break;
+                case VRU_HIT_DOWN:  menu->actions.go_down  = true; any_input = true; break;
+                case VRU_HIT_LEFT:  menu->actions.go_left  = true; any_input = true; break;
+                case VRU_HIT_RIGHT: menu->actions.go_right = true; any_input = true; break;
+                case VRU_HIT_OK:    menu->actions.enter    = true; any_input = true; break;
+                case VRU_HIT_NONE:  break;
+            }
+
             if (any_input) {
                 last_input_ms = get_ticks_ms();
             }

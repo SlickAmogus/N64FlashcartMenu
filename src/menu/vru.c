@@ -39,6 +39,25 @@ static bool           load_attempted  = false;
 static int detected_frames = 0;
 #define INIT_DELAY_FRAMES   (6)
 
+/* Recognition state machine.  Each call to vru_poll advances by at most
+ * one step so we don't burn the whole frame on joybus I/O. */
+typedef enum {
+    LISTEN_OFF        = 0,
+    LISTEN_START      = 1,  /* need to send "start listening" 0x0C */
+    LISTEN_POLL       = 2,  /* listening; periodically read 0x09 for results */
+    LISTEN_STOP       = 3,  /* hit was dispatched; need to send "stop listening" */
+} listen_state_t;
+
+static listen_state_t listen_state    = LISTEN_OFF;
+static int            listen_counter  = 0;
+static vru_hit_t      pending_hit     = VRU_HIT_NONE;
+
+/* How often to poll the VRU for results, in frames.  Joybus exec blocks
+ * for ~16ms; polling every frame would cost roughly half a 30fps frame
+ * budget just on VRU I/O.  ~5 frames @ 30fps ≈ 165ms gives snappy
+ * recognition without thrashing the frame. */
+#define LISTEN_POLL_INTERVAL   (5)
+
 /* Navigation vocabulary, encoded against the Hey-You-Pikachu USA phoneme
  * alphabet (each entry is a 16-bit code, all codes are multiples of 3
  * per the alphabet's encoding scheme — see USA VRU Sound Indices doc).
@@ -273,6 +292,88 @@ static bool vru_upload_dictionary (int port) {
     return true;
 }
 
+/* Read the 0x09 result block (37 bytes: 4 header + 30 result + 2 mode + 1
+ * CRC) and return the hit_1 index, or 0x7FFF on "no match" / error.
+ *
+ * Result block layout (little-endian on wire per protocol notes):
+ *   0x00..0x03  header (US: 80 00 0F 00 typically)
+ *   0x04..0x05  error flags
+ *   0x06..0x07  # valid results
+ *   0x08..0x09  voice level from mic
+ *   0x0A..0x0B  relative voice level
+ *   0x0C..0x0D  voice length (~ms)
+ *   0x0E..0x0F  hit 1 index (or 0x7FFF)
+ *   0x10..0x11  hit 1 deviance
+ *   0x12..0x21  hits 2-5 (index/deviance pairs)
+ *   0x22..0x23  mode + status flags
+ *   0x24        data CRC */
+static uint16_t vru_read_result (int port) {
+    const uint8_t cmd[3] = { 0x09, 0x00, 0x00 };
+    uint8_t rx[37] = {0};
+    joybus_exec_cmd(port, 3, 37, cmd, rx);
+
+    /* CRC over the 36 data bytes. */
+    if (rx[36] != vru_crc(&rx[0], 36)) return 0x7FFF;
+
+    /* Reject if the VRU flagged a recognition error. */
+    uint16_t err = (uint16_t)rx[4] | ((uint16_t)rx[5] << 8);
+    if (err & 0xCC00) return 0x7FFF;          /* too low / too high / no match / too noisy */
+
+    /* hit_1 index, little-endian. */
+    uint16_t hit = (uint16_t)rx[0x0E] | ((uint16_t)rx[0x0F] << 8);
+    return hit;
+}
+
+/* One step of the recognition state machine.  Each call sends at most
+ * one joybus command. */
+static void vru_listen_step (int port) {
+    switch (listen_state) {
+        case LISTEN_OFF:
+            break;
+
+        case LISTEN_START:
+            /* "start listening": 0x0C { 00, 00, 06, 00 } */
+            if (vru_send_config(port, 0x00, 0x00, 0x06, 0x00)) {
+                listen_state   = LISTEN_POLL;
+                listen_counter = 0;
+            }
+            break;
+
+        case LISTEN_POLL:
+            if (++listen_counter < LISTEN_POLL_INTERVAL) break;
+            listen_counter = 0;
+            {
+                uint16_t hit = vru_read_result(port);
+                if (hit < VRU_DICT_SIZE) {
+                    /* Map dictionary slot to UI action — order must match
+                     * the upload order in vru_dictionary[]. */
+                    static const vru_hit_t map[VRU_DICT_SIZE] = {
+                        VRU_HIT_UP, VRU_HIT_DOWN, VRU_HIT_LEFT,
+                        VRU_HIT_RIGHT, VRU_HIT_OK,
+                    };
+                    pending_hit = map[hit];
+                    listen_state = LISTEN_STOP;
+                }
+                /* hit == 0x7FFF (or any out-of-range) → no match, keep polling. */
+            }
+            break;
+
+        case LISTEN_STOP:
+            /* "stop listening": 0x0C { 05, 00, 00, 00 }.  After acking, kick
+             * straight back to START so the next utterance is captured. */
+            if (vru_send_config(port, 0x05, 0x00, 0x00, 0x00)) {
+                listen_state = LISTEN_START;
+            }
+            break;
+    }
+}
+
+vru_hit_t vru_consume_hit (void) {
+    vru_hit_t h = pending_hit;
+    pending_hit = VRU_HIT_NONE;
+    return h;
+}
+
 void vru_poll (void) {
     int port = find_vru_port();
     if (port < 0) {
@@ -281,6 +382,9 @@ void vru_poll (void) {
         presence        = VRU_PRESENCE_ABSENT;
         detected_frames = 0;
         load_attempted  = false;
+        listen_state    = LISTEN_OFF;
+        listen_counter  = 0;
+        pending_hit     = VRU_HIT_NONE;
         return;
     }
 
@@ -311,8 +415,17 @@ void vru_poll (void) {
     if (presence == VRU_PRESENCE_READY && !load_attempted) {
         load_attempted = true;
         if (vru_upload_dictionary(port)) {
-            presence = VRU_PRESENCE_LOADED;
+            presence     = VRU_PRESENCE_LOADED;
+            listen_state = LISTEN_START;
         }
+        return;
+    }
+
+    /* Drive the recognition state machine once per frame after the
+     * dictionary is loaded.  Each call sends at most one joybus command
+     * (start, poll, or stop) so the frame budget stays predictable. */
+    if (presence == VRU_PRESENCE_LOADED) {
+        vru_listen_step(port);
     }
 }
 
