@@ -315,9 +315,32 @@ static uint16_t vru_read_result (int port) {
     /* CRC over the 36 data bytes. */
     if (rx[36] != vru_crc(&rx[0], 36)) return 0x7FFF;
 
+    /* If we read 0x09 before the VRU has actually produced a result
+     * (e.g. listening just started, no speech yet) the response is an
+     * all-zero block.  That's CRC-valid (CRC of 36 zeros = 0) and would
+     * otherwise parse as "hit_1 = 0 = UP", causing the menu to fire
+     * phantom UP actions every poll cycle.  Reject explicitly. */
+    bool all_zero = true;
+    for (int i = 0; i < 36; i++) {
+        if (rx[i]) { all_zero = false; break; }
+    }
+    if (all_zero) return 0x7FFF;
+
+    /* Real US result blocks start with header bytes 80 00 0F 00; reject
+     * anything else as junk / stale state. */
+    if (rx[0] != 0x80) return 0x7FFF;
+
+    /* Mode+status word at 0x22 is normally 0x0040 on a fresh result. */
+    uint16_t mode_status = (uint16_t)rx[0x22] | ((uint16_t)rx[0x23] << 8);
+    if (mode_status == 0) return 0x7FFF;
+
     /* Reject if the VRU flagged a recognition error. */
     uint16_t err = (uint16_t)rx[4] | ((uint16_t)rx[5] << 8);
     if (err & 0xCC00) return 0x7FFF;          /* too low / too high / no match / too noisy */
+
+    /* Reject if VRU reports zero valid results. */
+    uint16_t valid_count = (uint16_t)rx[6] | ((uint16_t)rx[7] << 8);
+    if (valid_count == 0) return 0x7FFF;
 
     /* hit_1 index, little-endian. */
     uint16_t hit = (uint16_t)rx[0x0E] | ((uint16_t)rx[0x0F] << 8);
