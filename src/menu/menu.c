@@ -307,22 +307,20 @@ void menu_run (boot_params_t *boot_params) {
                 menu->actions.back    || menu->actions.options   ||
                 menu->actions.settings|| menu->actions.lz_context;
 
-            /* VRU action dispatch is TEMPORARILY DISABLED.
-             *
-             * The VRU is returning result blocks that pass all our sanity
-             * checks (correct 0x80 header, non-zero mode/status, non-zero
-             * valid_count, no error bits) but with hit_1 = 0 every poll
-             * cycle.  That dispatches phantom UP, which has priority over
-             * enter / options / settings in the view's action ladder, so
-             * the controller becomes unusable.
-             *
-             * The 0x09 polling and debug overlay are still active so we
-             * can observe what the VRU is actually producing — once we
-             * know the cause (probably state-machine ordering or bad
-             * phoneme data poisoning the dictionary), this dispatch will
-             * be re-enabled, gated on something more discerning than
-             * "hit_1 < dict_size". */
-            (void)vru_consume_hit;
+            /* Inject any recognized voice command as a synthetic joypad
+             * action.  Dispatch is heavily gated inside the vru module
+             * (structural block validation, deviance threshold, and a
+             * 2-second cooldown) so even a misbehaving VRU can't lock
+             * the user out of controller input the way the first
+             * implementation did. */
+            switch (vru_consume_hit()) {
+                case VRU_HIT_UP:    menu->actions.go_up    = true; any_input = true; break;
+                case VRU_HIT_DOWN:  menu->actions.go_down  = true; any_input = true; break;
+                case VRU_HIT_LEFT:  menu->actions.go_left  = true; any_input = true; break;
+                case VRU_HIT_RIGHT: menu->actions.go_right = true; any_input = true; break;
+                case VRU_HIT_OK:    menu->actions.enter    = true; any_input = true; break;
+                case VRU_HIT_NONE:  break;
+            }
 
             if (any_input) {
                 last_input_ms = get_ticks_ms();

@@ -388,11 +388,12 @@ void ui_components_mic_indicator_draw (void) {
     if (vru_get_presence() == VRU_PRESENCE_LOADED) {
         vru_debug_info_t dbg;
         vru_get_debug_info(&dbg);
-        if (dbg.has_data) {
-            char l1[32], l2[32], l3[32];
+        {
+            char l1[32], l2[32], l3[32], l4[32];
             snprintf(l1, sizeof(l1), "vl%04X rl%04X", dbg.voice_level, dbg.rel_level);
             snprintf(l2, sizeof(l2), "er%04X n%u",    dbg.err_flags, dbg.valid_count);
             snprintf(l3, sizeof(l3), "h%04X st%04X",  dbg.hit_1_index, dbg.mode_status);
+            snprintf(l4, sizeof(l4), "cy%u sb%04X",   dbg.cycle_state, dbg.state_0b);
             int text_right = VISIBLE_AREA_X1 - 22;   /* leave room for icon */
             int text_x     = text_right - 220;
             rdpq_textparms_t p = {
@@ -405,6 +406,7 @@ void ui_components_mic_indicator_draw (void) {
             rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 +  2, l1);
             rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 + 14, l2);
             rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 + 26, l3);
+            rdpq_text_print(&p, FNT_DEFAULT, text_x, VISIBLE_AREA_Y0 + 38, l4);
         }
     }
 }

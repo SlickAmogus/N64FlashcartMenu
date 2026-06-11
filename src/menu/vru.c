@@ -39,24 +39,59 @@ static bool           load_attempted  = false;
 static int detected_frames = 0;
 #define INIT_DELAY_FRAMES   (6)
 
-/* Recognition state machine.  Each call to vru_poll advances by at most
- * one step so we don't burn the whole frame on joybus I/O. */
+/* Recognition cycle, modelled on the SDK's listen-and-fetch flow as
+ * reverse-engineered (zoinkity).  The original game traffic per cycle is:
+ *
+ *   0x0B  state read         — mode (low 3 bits) must be 0 before starting;
+ *                              modes 1/3/5 (and error mode 7) get kicked
+ *                              back to 0 with a 0x0C {00 00 07 00} reset
+ *   0x0C  {00 00 06 00}      — start listening
+ *   0x09  result read        — ONE read, only once a completed result
+ *                              exists.  Reading mid-capture returns a
+ *                              "busy" filler block (00 80 repeated, with
+ *                              valid CRC) which must not be parsed as a
+ *                              result.
+ *   0x0C  {00 00 07 00}      — post-result state reset (cmd 7)
+ *   0x0C  {05 00 00 00}      — stop listening
+ *   …repeat
+ *
+ * Each vru_poll call performs at most one joybus transaction. */
 typedef enum {
-    LISTEN_OFF        = 0,
-    LISTEN_START      = 1,  /* need to send "start listening" 0x0C */
-    LISTEN_POLL       = 2,  /* listening; periodically read 0x09 for results */
-    LISTEN_STOP       = 3,  /* hit was dispatched; need to send "stop listening" */
-} listen_state_t;
+    CYC_IDLE              = 0,
+    CYC_CHECK             = 1,  /* read 0x0B; decide START vs CMD7 reset    */
+    CYC_CMD7              = 2,  /* send 0x0C {00 00 07 00}                  */
+    CYC_CMD7_POLL         = 3,  /* poll 0x0B until mode returns to 0        */
+    CYC_START             = 4,  /* send 0x0C {00 00 06 00}                  */
+    CYC_WAIT              = 5,  /* poll 0x09 until a completed result shows */
+    CYC_CMD7_AFTER_RESULT = 6,  /* post-result reset before stopping        */
+    CYC_STOP              = 7,  /* send 0x0C {05 00 00 00}                  */
+} cycle_state_t;
 
-static listen_state_t listen_state    = LISTEN_OFF;
-static int            listen_counter  = 0;
-static vru_hit_t      pending_hit     = VRU_HIT_NONE;
+static cycle_state_t cyc_state       = CYC_IDLE;
+static int           cyc_timer       = 0;
+static int           cmd7_retries    = 0;
+static int           junk_reads      = 0;
+static vru_hit_t     pending_hit     = VRU_HIT_NONE;
+static uint32_t      last_dispatch_ms = 0;
 
-/* How often to poll the VRU for results, in frames.  Joybus exec blocks
- * for ~16ms; polling every frame would cost roughly half a 30fps frame
- * budget just on VRU I/O.  ~5 frames @ 30fps ≈ 165ms gives snappy
- * recognition without thrashing the frame. */
-#define LISTEN_POLL_INTERVAL   (5)
+/* Frames between polled joybus reads (0x0B in CHECK/CMD7_POLL, 0x09 in
+ * WAIT).  Joybus exec blocks ~hundreds of µs but flooding it competes
+ * with libdragon's background joypad polling, so keep it modest. */
+#define CYCLE_POLL_INTERVAL    (5)
+
+/* After this many consecutive busy/junk 0x09 reads (~30 s of silence),
+ * stop and restart the session to un-wedge any stuck state. */
+#define MAX_JUNK_READS         (60)
+
+/* Reject matches whose deviance exceeds the SDK's default acceptance
+ * threshold — higher deviance = worse match. */
+#define DEVIANCE_THRESHOLD     (0x0640)
+
+/* Minimum gap between dispatched voice actions.  Acts as a safety
+ * valve: even if the VRU misbehaves and reports phantom matches, the
+ * menu stays navigable because at most one synthetic input fires every
+ * couple of seconds. */
+#define DISPATCH_COOLDOWN_MS   (2000)
 
 /* Navigation vocabulary, encoded against the Hey-You-Pikachu USA phoneme
  * alphabet (each entry is a 16-bit code, all codes are multiples of 3
@@ -309,17 +344,27 @@ static bool vru_upload_dictionary (int port) {
  *   0x24        data CRC */
 static vru_debug_info_t last_debug = {0};
 
-static uint16_t vru_read_result (int port) {
+typedef enum {
+    RESULT_NOT_READY,   /* CRC fail, busy filler, or incomplete (mode != 0) */
+    RESULT_COMPLETE,    /* structurally valid, completed result block       */
+} result_status_t;
+
+/* Read the 0x09 result block once.  Distinguishes "structure" (is this a
+ * real, completed result block at all?) from "quality" (did the speech
+ * actually match a word?) — the caller decides what to do with quality.
+ * Mid-capture, the VRU answers with a CRC-valid filler pattern of
+ * "00 80" repeated; that and any block whose mode bits aren't 0 count
+ * as NOT_READY. */
+static result_status_t vru_read_result (int port) {
     const uint8_t cmd[3] = { 0x09, 0x00, 0x00 };
     uint8_t rx[37] = {0};
     joybus_exec_cmd(port, 3, 37, cmd, rx);
 
     /* CRC over the 36 data bytes. */
-    if (rx[36] != vru_crc(&rx[0], 36)) return 0x7FFF;
+    if (rx[36] != vru_crc(&rx[0], 36)) return RESULT_NOT_READY;
 
-    /* Capture every field BEFORE sanity rejects, so the debug overlay
-     * can show what the VRU is actually returning — even garbage tells
-     * us something about the state. */
+    /* Capture every field BEFORE structural rejects, so the debug
+     * overlay shows what the VRU actually said even when it's filler. */
     last_debug.has_data       = true;
     last_debug.err_flags      = (uint16_t)rx[0x04] | ((uint16_t)rx[0x05] << 8);
     last_debug.valid_count    = (uint16_t)rx[0x06] | ((uint16_t)rx[0x07] << 8);
@@ -330,77 +375,113 @@ static uint16_t vru_read_result (int port) {
     last_debug.hit_1_deviance = (uint16_t)rx[0x10] | ((uint16_t)rx[0x11] << 8);
     last_debug.mode_status    = (uint16_t)rx[0x22] | ((uint16_t)rx[0x23] << 8);
 
-    /* If we read 0x09 before the VRU has actually produced a result
-     * (e.g. listening just started, no speech yet) the response is an
-     * all-zero block.  That's CRC-valid (CRC of 36 zeros = 0) and would
-     * otherwise parse as "hit_1 = 0 = UP", causing the menu to fire
-     * phantom UP actions every poll cycle.  Reject explicitly. */
-    bool all_zero = true;
-    for (int i = 0; i < 36; i++) {
-        if (rx[i]) { all_zero = false; break; }
-    }
-    if (all_zero) return 0x7FFF;
+    /* Real result blocks start with header byte 0x80 (US: 80 00 0F 00).
+     * Anything else — all zeros, the 00 80 busy filler, etc. — is not a
+     * completed result. */
+    if (rx[0] != 0x80) return RESULT_NOT_READY;
 
-    /* Real US result blocks start with header bytes 80 00 0F 00; reject
-     * anything else as junk / stale state. */
-    if (rx[0] != 0x80) return 0x7FFF;
+    /* Result is only complete when the mode bits (low 3 of the status
+     * word at 0x22) have returned to 0; the 0x40 flag should be set on
+     * a normal block. */
+    if (last_debug.mode_status == 0)       return RESULT_NOT_READY;
+    if (last_debug.mode_status & 0x0007)   return RESULT_NOT_READY;
 
-    /* Mode+status word at 0x22 is normally 0x0040 on a fresh result. */
-    uint16_t mode_status = (uint16_t)rx[0x22] | ((uint16_t)rx[0x23] << 8);
-    if (mode_status == 0) return 0x7FFF;
-
-    /* Reject if the VRU flagged a recognition error. */
-    uint16_t err = (uint16_t)rx[4] | ((uint16_t)rx[5] << 8);
-    if (err & 0xCC00) return 0x7FFF;          /* too low / too high / no match / too noisy */
-
-    /* Reject if VRU reports zero valid results. */
-    uint16_t valid_count = (uint16_t)rx[6] | ((uint16_t)rx[7] << 8);
-    if (valid_count == 0) return 0x7FFF;
-
-    /* hit_1 index, little-endian. */
-    uint16_t hit = (uint16_t)rx[0x0E] | ((uint16_t)rx[0x0F] << 8);
-    return hit;
+    return RESULT_COMPLETE;
 }
 
-/* One step of the recognition state machine.  Each call sends at most
- * one joybus command. */
-static void vru_listen_step (int port) {
-    switch (listen_state) {
-        case LISTEN_OFF:
+/* Decide whether a COMPLETE result is a confident match worth acting
+ * on, and if so latch it into pending_hit (subject to a cooldown so a
+ * misbehaving VRU can never lock the user out of the menu). */
+static void vru_maybe_dispatch (void) {
+    if (last_debug.err_flags & 0xCC00) return;   /* too low/high, no match, noisy */
+    if (last_debug.valid_count == 0)   return;
+    if (last_debug.hit_1_index >= VRU_DICT_SIZE) return;
+    if (last_debug.hit_1_deviance > DEVIANCE_THRESHOLD) return;
+
+    uint32_t now = get_ticks_ms();
+    if (last_dispatch_ms != 0 && (now - last_dispatch_ms) < DISPATCH_COOLDOWN_MS) return;
+    last_dispatch_ms = now;
+
+    static const vru_hit_t map[VRU_DICT_SIZE] = {
+        VRU_HIT_UP, VRU_HIT_DOWN, VRU_HIT_LEFT, VRU_HIT_RIGHT, VRU_HIT_OK,
+    };
+    pending_hit = map[last_debug.hit_1_index];
+}
+
+/* One step of the recognition cycle.  At most one joybus transaction
+ * per call. */
+static void vru_cycle_step (int port) {
+    last_debug.cycle_state = (uint8_t)cyc_state;
+
+    switch (cyc_state) {
+        case CYC_IDLE:
             break;
 
-        case LISTEN_START:
-            /* "start listening": 0x0C { 00, 00, 06, 00 } */
+        case CYC_CHECK: {
+            if (++cyc_timer < CYCLE_POLL_INTERVAL) break;
+            cyc_timer = 0;
+            uint16_t state = vru_read_state(port);
+            last_debug.state_0b = state;
+            if (state == UINT16_MAX) break;          /* CRC bad — retry */
+            switch (state & 0x0007) {
+                case 0:  cyc_state = CYC_START; break;
+                default: cyc_state = CYC_CMD7;  break;  /* 1/3/5/7 need a reset */
+            }
+            break;
+        }
+
+        case CYC_CMD7:
+            if (vru_send_config(port, 0x00, 0x00, 0x07, 0x00)) {
+                cyc_state    = CYC_CMD7_POLL;
+                cmd7_retries = 0;
+                cyc_timer    = 0;
+            }
+            break;
+
+        case CYC_CMD7_POLL: {
+            if (++cyc_timer < CYCLE_POLL_INTERVAL) break;
+            cyc_timer = 0;
+            uint16_t state = vru_read_state(port);
+            last_debug.state_0b = state;
+            if (state != UINT16_MAX && (state & 0x0007) == 0) {
+                cyc_state = CYC_START;
+            } else if (++cmd7_retries > 20) {
+                cyc_state = CYC_CHECK;               /* give up; retry loop */
+            }
+            break;
+        }
+
+        case CYC_START:
             if (vru_send_config(port, 0x00, 0x00, 0x06, 0x00)) {
-                listen_state   = LISTEN_POLL;
-                listen_counter = 0;
+                cyc_state  = CYC_WAIT;
+                cyc_timer  = 0;
+                junk_reads = 0;
+            } else {
+                cyc_state = CYC_CHECK;
             }
             break;
 
-        case LISTEN_POLL:
-            if (++listen_counter < LISTEN_POLL_INTERVAL) break;
-            listen_counter = 0;
-            {
-                uint16_t hit = vru_read_result(port);
-                if (hit < VRU_DICT_SIZE) {
-                    /* Map dictionary slot to UI action — order must match
-                     * the upload order in vru_dictionary[]. */
-                    static const vru_hit_t map[VRU_DICT_SIZE] = {
-                        VRU_HIT_UP, VRU_HIT_DOWN, VRU_HIT_LEFT,
-                        VRU_HIT_RIGHT, VRU_HIT_OK,
-                    };
-                    pending_hit = map[hit];
-                    listen_state = LISTEN_STOP;
-                }
-                /* hit == 0x7FFF (or any out-of-range) → no match, keep polling. */
+        case CYC_WAIT:
+            if (++cyc_timer < CYCLE_POLL_INTERVAL) break;
+            cyc_timer = 0;
+            if (vru_read_result(port) == RESULT_COMPLETE) {
+                vru_maybe_dispatch();
+                cyc_state = CYC_CMD7_AFTER_RESULT;
+            } else if (++junk_reads > MAX_JUNK_READS) {
+                cyc_state = CYC_STOP;                /* un-wedge stuck session */
             }
             break;
 
-        case LISTEN_STOP:
-            /* "stop listening": 0x0C { 05, 00, 00, 00 }.  After acking, kick
-             * straight back to START so the next utterance is captured. */
+        case CYC_CMD7_AFTER_RESULT:
+            /* Post-result reset, mirroring the SDK's cmd7-then-stop order. */
+            vru_send_config(port, 0x00, 0x00, 0x07, 0x00);
+            cyc_state = CYC_STOP;
+            break;
+
+        case CYC_STOP:
             if (vru_send_config(port, 0x05, 0x00, 0x00, 0x00)) {
-                listen_state = LISTEN_START;
+                cyc_state = CYC_CHECK;
+                cyc_timer = 0;
             }
             break;
     }
@@ -424,8 +505,8 @@ void vru_poll (void) {
         presence        = VRU_PRESENCE_ABSENT;
         detected_frames = 0;
         load_attempted  = false;
-        listen_state    = LISTEN_OFF;
-        listen_counter  = 0;
+        cyc_state       = CYC_IDLE;
+        cyc_timer       = 0;
         pending_hit     = VRU_HIT_NONE;
         return;
     }
@@ -457,17 +538,17 @@ void vru_poll (void) {
     if (presence == VRU_PRESENCE_READY && !load_attempted) {
         load_attempted = true;
         if (vru_upload_dictionary(port)) {
-            presence     = VRU_PRESENCE_LOADED;
-            listen_state = LISTEN_START;
+            presence  = VRU_PRESENCE_LOADED;
+            cyc_state = CYC_CHECK;
         }
         return;
     }
 
-    /* Drive the recognition state machine once per frame after the
-     * dictionary is loaded.  Each call sends at most one joybus command
-     * (start, poll, or stop) so the frame budget stays predictable. */
+    /* Drive the recognition cycle once per frame after the dictionary
+     * is loaded.  Each call sends at most one joybus command so the
+     * frame budget stays predictable. */
     if (presence == VRU_PRESENCE_LOADED) {
-        vru_listen_step(port);
+        vru_cycle_step(port);
     }
 }
 

@@ -52,6 +52,8 @@ typedef struct {
     uint16_t  hit_1_index;     /**< bytes 0x0E–0x0F (best-match dictionary slot)     */
     uint16_t  hit_1_deviance;  /**< bytes 0x10–0x11 (best-match confidence — lower is better) */
     uint16_t  mode_status;     /**< bytes 0x22–0x23 (mode + status flags, normally 0x0040) */
+    uint16_t  state_0b;        /**< last 0x0B state word read during the cycle */
+    uint8_t   cycle_state;     /**< current recognition-cycle state (diagnostic) */
 } vru_debug_info_t;
 
 /** @brief Copy the most-recent 0x09 read into @p out (for debug overlay). */
