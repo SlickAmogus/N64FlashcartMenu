@@ -268,37 +268,26 @@ void menu_run (boot_params_t *boot_params) {
     uint32_t last_input_ms = get_ticks_ms();
     bool screensaver_was_active = false;
 
+    /* NOTE: joypad_poll() must be called EXACTLY ONCE per rendered frame
+     * (inside actions_update).  An extra poll anywhere in this loop eats
+     * button press edges: the main loop spins thousands of times per
+     * second waiting on display_try_get(), and each poll advances the
+     * previous/current button generations — so a press registered by a
+     * spin-loop poll looks merely "held" by the time actions_update
+     * polls, and joypad_get_buttons_pressed() returns nothing.  That bug
+     * made A / R / Start completely unresponsive while the d-pad (which
+     * reads held state, not edges) kept working. */
     while (true) {
-        /* Poll joypad EVERY iteration regardless of whether a framebuffer
-         * is available.  display_try_get() can return NULL for many frames
-         * in a row when the render pipeline stalls (e.g. SD-card boxart
-         * load in favorites/history) — and if we only poll inside the
-         * display branch, those frames silently drop the user's input,
-         * making last_input_ms go stale and the screensaver fire early. */
-        joypad_poll();
-        {
-            bool raw_input = false;
-            JOYPAD_PORT_FOREACH (i) {
-                joypad_buttons_t btns = joypad_get_buttons_held(i);
-                joypad_8way_t dir = joypad_get_direction(i, JOYPAD_2D_DPAD | JOYPAD_2D_STICK);
-                joypad_8way_t cdir = joypad_get_direction(i, JOYPAD_2D_C);
-                if (btns.raw || dir != JOYPAD_8WAY_NONE || cdir != JOYPAD_8WAY_NONE) {
-                    raw_input = true;
-                    break;
-                }
-            }
-            if (raw_input) {
-                last_input_ms = get_ticks_ms();
-                if (menu->screensaver_force_active) {
-                    menu->screensaver_force_active = false;
-                }
-            }
-        }
-
         surface_t *display = display_try_get();
 
         if (display != NULL) {
             actions_update(menu);
+
+            /* Tick the VRU state machine once per rendered frame (NOT in
+             * the busy-wait section below — that spins thousands of times
+             * per second and would hammer the joybus with VRU commands,
+             * starving the background joypad/identify polling). */
+            vru_poll();
 
             bool any_input =
                 menu->actions.go_up   || menu->actions.go_down   ||
@@ -311,8 +300,7 @@ void menu_run (boot_params_t *boot_params) {
              * action.  Dispatch is heavily gated inside the vru module
              * (structural block validation, deviance threshold, and a
              * 2-second cooldown) so even a misbehaving VRU can't lock
-             * the user out of controller input the way the first
-             * implementation did. */
+             * the user out of controller input. */
             switch (vru_consume_hit()) {
                 case VRU_HIT_UP:    menu->actions.go_up    = true; any_input = true; break;
                 case VRU_HIT_DOWN:  menu->actions.go_down  = true; any_input = true; break;
@@ -322,8 +310,30 @@ void menu_run (boot_params_t *boot_params) {
                 case VRU_HIT_NONE:  break;
             }
 
+            /* Held-state activity also counts for screensaver idle
+             * tracking: a held direction during the auto-repeat delay
+             * produces no action edge but is clearly user activity.
+             * Reads the generation latched by actions_update — no extra
+             * joypad_poll (see the note above the main loop). */
+            if (!any_input) {
+                JOYPAD_PORT_FOREACH (i) {
+                    joypad_buttons_t held = joypad_get_buttons_held(i);
+                    joypad_8way_t dir  = joypad_get_direction(i, JOYPAD_2D_DPAD | JOYPAD_2D_STICK);
+                    joypad_8way_t cdir = joypad_get_direction(i, JOYPAD_2D_C);
+                    if (held.raw || dir != JOYPAD_8WAY_NONE || cdir != JOYPAD_8WAY_NONE) {
+                        any_input = true;
+                        break;
+                    }
+                }
+            }
+
             if (any_input) {
                 last_input_ms = get_ticks_ms();
+                /* Any input cancels a queued/active screensaver preview,
+                 * otherwise the force flag would re-trigger it forever. */
+                if (menu->screensaver_force_active) {
+                    menu->screensaver_force_active = false;
+                }
             }
 
             bool screensaver_eligible = (
@@ -390,7 +400,6 @@ void menu_run (boot_params_t *boot_params) {
         bgm_process();
         screensaver_process();
         sound_poll();
-        vru_poll();
 
         png_decoder_poll();
 
